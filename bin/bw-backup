@@ -56,9 +56,8 @@ main() {
 }
 
 init() {
-    readonly scriptName=$(basename "${0}")
-    declare -grx SAGE_ETC_DIR=$(rootDirPath etc) # TODO move pinentry-sage to bin, rename to pin-entry
-    declare -grx PINENTRY_PROGRAM="${SAGE_ETC_DIR}/pinentry-sage"
+    readonly scriptName="$(basename "${0}")"
+    declare -grx PINENTRY_PROGRAM="${RAYVN_BIN_DIR}/rayvn-pinentry"
     readonly rageProjectUrl='https://github.com/str4d/rage'
     readonly passwordVisibility="none"
     readonly defaultServerUrl="https://vault.bitwarden.com"
@@ -156,7 +155,7 @@ verifySecureTempDir() {
 
 ensureLatestCLI() {
     echo
-    echo "$(ansi bold Ensure Bitwarden CLI is current)"
+    echo "$(ansi bold_blue Ensure Bitwarden CLI is current)"
     echo
     local update="$(bw update 2>&1)"
     if [[ ${update} =~ "new version" ]]; then
@@ -175,22 +174,17 @@ loginToVault() {
     session=
 
     echo
-    echo "$(ansi bold Login to vault)"
+    echo "$(ansi bold_blue Login to vault)"
 
     logoutFromVault # just in case there is an active session
 
     for i in {1..3}; do
         echo
-        readPassword "Email address [not shown]" accountEmail 600 false
-        readPassword "Master password [not shown]" accountPW 600 false
-        readPassword "Two-step login code [not shown, enter if none]" account2FA 600 false
+ #       readPassword "Email address [not shown]" accountEmail 600 false
+ #       readPassword "Master password [not shown]" accountPW 600 false
+ #       readPassword "Two-step login code [not shown, enter if none]" account2FA 600 false
         bw config server "${vaultUrl}" >/dev/null
-
-        if [[ ${account2FA} ]]; then
-            session="$(bw login "${accountEmail}" "${accountPW}" --code "${account2FA}")" && break
-        else
-            session="$(bw login "${accountEmail}" "${accountPW}")" && break
-        fi
+        session="$(bw login)" && break
     done
 
     unset accountEmail
@@ -203,7 +197,7 @@ loginToVault() {
 
 syncVault() {
     echo
-    echo "$(ansi bold Syncing vault)"
+    echo "$(ansi bold_blue Syncing vault)"
     echo
     bw sync || fail
 }
@@ -214,7 +208,7 @@ backupVault() {
     local attachments attachment
     local attachDir
     echo
-    echo "$(ansi bold Backing up vault)  "
+    echo "$(ansi bold_blue Backing up vault)  "
     echo
     echo -n "$(ansi italic working) "
     startBackgroundSpinner
