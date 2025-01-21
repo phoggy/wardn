@@ -1,0 +1,315 @@
+#!/usr/bin/env bash
+
+declare -grx BW_BACKUP_VERSION='bw-backup 0.1.0'
+
+# TODO: what to do about account recovery code?
+
+# shellcheck disable=SC2120
+usage() {
+    echo
+    echo "$(ansi bold Create a backup of a Bitwarden vault or restore a vault from one, secured by an) $(ansi cyan Age) $(ansi bold public key pair.)"
+    echo
+    echo "Usage: $(ansi bold_blue ${scriptName}) [--create] (-r RECIPIENT | -R PATH)... [-o OUTPUT_DIR]"
+    echo "       $(ansi bold_blue ${scriptName}) --restore BACKUP_FILE -i IDENTITY"
+    echo
+    echo "Uses the rust port of Age, see $(ansi cyan ${rageProjectUrl}) for details on features and key creation. Private"
+    echo "keys $(ansi bold_italic SHOULD) be protected by a strong password, and a copy of both the key and password stored offline in at"
+    echo "least one secure location."
+    echo
+    echo "$(ansi bold_green Note) A temporary directory is required during both operations, and $(ansi italic unencrypted) vault data will be stored there."
+    echo "These files will be deleted by this script; however, file recovery software may still be able to read them long"
+    echo "afterward. Standard security practice is to use encrypted storage to avoid this risk, so by default you will be"
+    echo "prompted to agree that the temp directory is secured. If your system uses whole disk encryption, or if the"
+    echo "directory specified via -t is known to be encrypted (e.g. by VeraCrypt), this prompt can be suppressed via -s or"
+    echo "by setting the SKIP_TEMP_DIR_PROMPT environment variable."
+    echo
+    echo "Options:"
+    echo
+    echo "    -t, --temp-dir PATH            Use the directory at PATH for temporary storage."
+    echo "    -s, --skip-temp-dir-prompt     Skip temporary directory security prompt."
+    echo "    -r, --recipient RECIPIENT      Encrypt to the specified RECIPIENT (public key). May be repeated."
+    echo "    -R, --recipients-file PATH     Encrypt to the recipients (public keys) listed at PATH. May be repeated."
+    echo "    -o, --output-dir PATH          Use the directory at PATH to store the encrypted backup."
+    echo "    -n, --name NAME                Set a name to include in the backup file name."
+    echo "    -u, --url URL                  Set the URL for the Bitwarden server. Defaults to ${defaultServerUrl}"
+    echo "    --backup PATH                  Restore using the backup file at PATH."
+    echo "    -i, --identity IDENTITY        Restore using the identity (private key) file at IDENTITY. May be repeated."
+    echo "    -h, --help                     Display usage and exit."
+    echo "    --version                      Display version and exit."
+    echo
+    echo "Environment Variables"
+    echo
+    echo "    SKIP_TEMP_DIR_PROMPT           Skip the temporary directory security prompt. "
+    echo "    BACKUP_DIRECTORY               Set the default backup directory."
+    bye "${@}"
+}
+
+main() {
+    init "${@}"
+    verifySecureTempDir
+    assertExecutables requiredExecutables
+    ensureLatestCLI
+    loginToVault
+    syncVault
+    backupVault
+    logoutFromVault
+}
+
+init() {
+    readonly scriptName=$(basename "${0}")
+    declare -grx SAGE_ETC_DIR=$(rootDirPath etc) # TODO move pinentry-sage to bin, rename to pin-entry
+    declare -grx PINENTRY_PROGRAM="${SAGE_ETC_DIR}/pinentry-sage"
+    readonly rageProjectUrl='https://github.com/str4d/rage'
+    readonly passwordVisibility="none"
+    readonly defaultServerUrl="https://vault.bitwarden.com"
+    vaultName=
+    vaultUrl=
+    suppliedTempDir=
+    assertSecureTempDir="${SKIP_TEMP_DIR_PROMPT:-''}"
+    identities=
+    recipients=
+    backupDir=
+    restoreFile=
+
+    while ((${#} > 0)); do
+        case "${1}" in
+        --create) unset restoreFile ;;
+        --restore) shift; setFileVar restoreFile "${1}" ;;
+        -t | --temp-dir) shift; setDirVar suppliedTempDir "${1}" "SECURE_TEMP_DIR" ;;
+        -s | --skip-temp-dir-prompt) unset assertSecureTempDir ;;
+        -r | --recipient) shift; appendVar recipients "-r ${1}" ;;
+        -R | --recipients-file) shift; assertFile "${1}" "recipients file"; appendVar recipients "-R ${1}" ;;
+        -d | --identity) shift; assertFile "${1}" "identities file"; appendVar identities "-i ${1}" ;;
+        -o | --output-dir) shift; setDirVar backupDir "${1}" "OUTPUT_DIR" ;;
+        -n | --name) shift; vaultName="${1}" ;;
+        -u | --url) shift; vaultUrl="${1}" ;;
+        -h | --help) usage ;;
+        -v | --version) version "${BW_BACKUP_VERSION}" ;;
+        *) setPrefix "${1}" ;;
+        esac
+        shift
+    done
+
+    require 'core/readpass'
+    if [[ ${restoreFile} ]]; then
+        [[ ${identities} ]] || fail "one or more identities required"
+    else
+        [[ ${recipients} ]] || fail "one or more recipients required"
+    fi
+
+    [[ ${vaultName} ]] || vaultName="${USER}"
+    [[ ${vaultUrl} ]] || vaultUrl="${defaultServerUrl}"
+    readonly backupName="${vaultName}-backup-$(timeStamp)"
+
+    if [[ ${backupDir} ]]; then
+        [[ -d ${backupDir} ]] || fail "Output directory ${backupDir} not found"
+        backupFile="${backupDir}/${backupName}.tar.gz.age"
+    else
+        backupFile="${backupName}.tar.gz.age"
+    fi
+
+    setSecureTempDir
+    readonly tempDir="$(makeDir "${secureTempDir}" "${backupName}")"
+    chmod 700 "${tempDir}" || fail
+    readonly vaultFile="${tempDir}/vault.json"
+    readonly attachmentsDir="$(makeDir ${tempDir} attachments)"
+    cd "${secureTempDir}" || fail
+
+    addExitHandler logoutFromVault
+}
+
+setSecureTempDir() {
+    if [[ ${suppliedTempDir} ]]; then
+
+        # User supplied, so generate a temp dir within it. Remember the generated dir
+        # to ensure we delete it on exit
+
+        local randomDirName="$(basename "$(mktemp -d -u)")" || fail
+        generatedTempDir="$(makeDir ${suppliedTempDir} ${randomDirName})"
+        secureTempDir=${generatedTempDir}
+    else
+
+        # Not supplied, so use the base temp dir which will be deleted by rayvn on exit
+
+        secureTempDir="$(tempDirPath)"
+    fi
+    [[ -d ${secureTempDir} ]] || fail "Secure temp directory ${secureTempDir} not found!"
+}
+
+verifySecureTempDir() {
+    if [[ ${assertSecureTempDir} ]]; then
+        local source
+        local reply
+        [[ ${secureTempDir} == $(tempDirPath) ]] && source="default" || source="supplied"
+        echo
+        echo "$(ansi bold Verify configuration)"
+        echo
+        echo "Using ${source} temp directory: $(ansi blue ${secureTempDir})"
+        echo
+        read -t 30 -p "This directory SHOULD be encrypted to avoid leaking sensitive data. Proceed? [yes/no]: " reply
+        if [[ ${reply,,} != 'yes' ]]; then
+            echo
+            fail "See help for more about this issue: ${scriptName} --help"
+        fi
+    fi
+}
+
+ensureLatestCLI() {
+    echo
+    echo "$(ansi bold Ensure Bitwarden CLI is current)"
+    echo
+    local update="$(bw update 2>&1)"
+    if [[ ${update} =~ "new version" ]]; then
+        printRed "The Bitwarden CLI at $(which bw) is out of date."
+        echo
+        echo "${update}"
+        fail
+    fi
+    echo "Latest CLI installed at $(ansi bold_green "$(which bw)")"
+}
+
+loginToVault() {
+    local accountEmail=
+    local accountPW=
+    local account2FA=
+    session=
+
+    echo
+    echo "$(ansi bold Login to vault)"
+
+    logoutFromVault # just in case there is an active session
+
+    for i in {1..3}; do
+        echo
+        readPassword "Email address [not shown]" accountEmail 600 false
+        readPassword "Master password [not shown]" accountPW 600 false
+        readPassword "Two-step login code [not shown, enter if none]" account2FA 600 false
+        bw config server "${vaultUrl}" >/dev/null
+
+        if [[ ${account2FA} ]]; then
+            session="$(bw login "${accountEmail}" "${accountPW}" --code "${account2FA}")" && break
+        else
+            session="$(bw login "${accountEmail}" "${accountPW}")" && break
+        fi
+    done
+
+    unset accountEmail
+    unset accountPW
+    unset account2FA
+
+    session=$(echo "${session}" | grep export | cut -d'"' -f2)
+    [[ ${session} ]] || fail "login failed"
+}
+
+syncVault() {
+    echo
+    echo "$(ansi bold Syncing vault)"
+    echo
+    bw sync || fail
+}
+
+backupVault() {
+    local items item
+    local attachmentItemIds attachmentItemId
+    local attachments attachment
+    local attachDir
+    echo
+    echo "$(ansi bold Backing up vault)  "
+    echo
+    echo -n "$(ansi italic working) "
+    startBackgroundSpinner
+
+    bw export --raw --format json --session "${session}" >"${vaultFile}" || fail
+
+    items="$(bw list items --session "${session}")"
+
+    attachmentItemIds="$(echo ${items} | jq -r ".[] | select(.attachments).id")"
+
+    for attachmentItemId in ${attachmentItemIds}; do
+        item="$(echo "${items}" | jq -r ".[] | select(.id == \"${attachmentItemId}\")")"
+        attachments="$(echo "${item}" | jq -r ".attachments")"
+        length="$(echo "${attachments}" | jq -r ". | length")"
+
+        for ((i = 0; i < ${length}; i++)); do
+            attachDir="$(makeDir ${attachmentsDir} ${attachmentItemId})"
+
+            attachment="$(echo "${attachments}" | jq ".[${i}]")"
+            attachmentId="$(echo "${attachment}" | jq -r ".id")"
+            fileName="$(echo "${attachment}" | jq -r ".fileName")"
+
+            # get attachment
+
+            bw get attachment "${attachmentId}" --itemid "${attachmentItemId}" --session="${session}" \
+                --output "${attachDir}/${fileName}" >/dev/null 2>&1 || fail
+        done
+    done
+
+    tar cz "${backupName}" | rage ${recipients} > ${backupFile} || fail
+    local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
+
+    stopBackgroundSpinner
+    eraseCurrentLine
+    echo "$(ansi bold_green Vault backed up to ${backupFile}) size: $(ansi bold ${size})"
+}
+
+restoreVault() {
+    # On import:
+    #
+    # 1. imported items are DUPLICATED, with new IDs
+    # 2. imported folders with same id are NOT DUPLICATED
+    # 3. Deleting a folder (on UI) automatically just moves items tagged in that folder OUt of it.
+    #
+    # Therefore, to avoid confusion
+    # TODO: create new "restore-{DATE} folder" and import into that!
+    # Creating a folder requires creating an "encoded" json, e.g.
+    #
+    # $ bw create folder eyJuYW1lIjoiTXkgRm9sZGVyIn0K
+    # {"object":"folder","id":"c7cf9476-d0c8-4281-9832-b26b013c4ead","name":"My Folder"}
+    #
+    # Use the 'bw encode' command to encode, after using 'bw get template folder'
+    # $ bw get template folder | jq '.name="Restore: Jan 20, 2025 11:23am"' | bw encode | bw create folder
+    # {"object":"folder","id":"0b0cb093-500c-4b37-9067-b26b013fb31a","name":"Restore: Jan 20, 2025 11:23am"}
+
+    echo
+}
+
+logoutFromVault() {
+    unset accountEmail
+    unset account2FA
+    if [[ ${session} ]]; then
+        unset session
+    fi
+    if [[ ${generatedTempDir} ]]; then
+        rm -rf "${generatedTempDir}" >/dev/null 2>&1 || warn "Failed to delete temp dir: ${generatedTempDir}"
+    fi
+    bw logout >/dev/null 2>&1
+}
+
+# Load core library
+
+source "${HOME}/.rayvn/boot.sh" 2>/dev/null || { echo 'rayvn not installed' && exit 0; }
+require 'core/base'
+require 'core/spinner'
+
+# Define required executables (checked in main to avoid delay with help).
+
+declare -A requiredExecutables=(
+
+    [bw_min]='2025.1.0'
+    [bw_brew]=false
+    [bw_install]='https://bitwarden.com/download/#downloads-command-line-interface'
+    [bw_version]='versionExtract'
+
+    [rage_min]='0.11.1'
+    [rage_brew]=true
+    [rage_brew_tap]='str4d.xyz/rage https://str4d.xyz/rage'
+    [rage_install]='https://github.com/str4d/rage'
+    [rage_version]='versionExtract'
+
+    [jq_min]='1.7.1'
+    [jq_brew]=true
+    [jq_install]='https://jqlang.github.io/jq/download/'
+    [jq_version]='versionExtractDash'
+)
+
+main "${@}"
