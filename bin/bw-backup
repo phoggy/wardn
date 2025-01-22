@@ -12,6 +12,9 @@ usage() {
     echo "Usage: $(ansi bold_blue ${scriptName}) [--create] (-r RECIPIENT | -R PATH)... [-o OUTPUT_DIR]"
     echo "       $(ansi bold_blue ${scriptName}) --restore BACKUP_FILE -i IDENTITY"
     echo
+    echo "A Bitwarden API key and secret is required, see $(ansi blue https://bitwarden.com/help/personal-api-key/). The key and"
+    echo "secret must be set in the environment variables BW_CLIENTID and BW_CLIENTSECRET respectively. "
+    echo
     echo "Uses the rust port of Age, see $(ansi cyan ${rageProjectUrl}) for details on features and key creation. Private"
     echo "keys $(ansi bold_italic SHOULD) be protected by a strong password, and a copy of both the key and password stored offline in at"
     echo "least one secure location."
@@ -56,6 +59,8 @@ main() {
 }
 
 init() {
+    [[ ${BW_CLIENTID} ]] || fail "BW_CLIENTID env var not set"
+    [[ ${BW_CLIENTSECRET} ]] || fail "BW_CLIENTSECRET env var not set"
     readonly scriptName="$(basename "${0}")"
     declare -grx PINENTRY_PROGRAM="${RAYVN_BIN_DIR}/rayvn-pinentry"
     readonly rageProjectUrl='https://github.com/str4d/rage'
@@ -164,34 +169,24 @@ ensureLatestCLI() {
         echo "${update}"
         fail
     fi
-    echo "Latest CLI installed at $(ansi bold_green "$(which bw)")"
+    echo "Latest CLI is installed at $(ansi bold_green "$(which bw)")"
 }
 
 loginToVault() {
-    local accountEmail=
-    local accountPW=
-    local account2FA=
     session=
 
     echo
     echo "$(ansi bold_blue Login to vault)"
 
     logoutFromVault # just in case there is an active session
+    bw config server "${vaultUrl}" > /dev/null
+    bw login --apikey > /dev/null || fail
 
     for i in {1..3}; do
         echo
- #       readPassword "Email address [not shown]" accountEmail 600 false
- #       readPassword "Master password [not shown]" accountPW 600 false
- #       readPassword "Two-step login code [not shown, enter if none]" account2FA 600 false
-        bw config server "${vaultUrl}" >/dev/null
-        session="$(bw login)" && break
+        session="$(bw unlock --raw)" && break
     done
 
-    unset accountEmail
-    unset accountPW
-    unset account2FA
-
-    session=$(echo "${session}" | grep export | cut -d'"' -f2)
     [[ ${session} ]] || fail "login failed"
 }
 
