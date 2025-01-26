@@ -9,30 +9,30 @@ usage() {
     echo
     echo "$(ansi bold Create a backup of a Bitwarden vault or restore a vault from one, secured by an) $(ansi cyan Age) $(ansi bold public key pair.)"
     echo
-    echo "Usage: $(ansi bold_blue ${scriptName}) [--create] (-r RECIPIENT | -R PATH)... [-o OUTPUT_DIR]"
+    echo "Usage: $(ansi bold_blue ${scriptName}) [--create] (-r RECIPIENT | -R PATH)... [-b BACKUP_DIR]"
     echo "       $(ansi bold_blue ${scriptName}) --restore BACKUP_FILE -i IDENTITY"
     echo
-    echo "A Bitwarden API key and secret is required, see $(ansi blue https://bitwarden.com/help/personal-api-key/). The key and"
-    echo "secret must be set in the environment variables BW_CLIENTID and BW_CLIENTSECRET respectively. "
+    echo "The Bitwarden CLI is used and an API key and secret is required, both of which must be set in the environment"
+    echo "variables BW_CLIENTID and BW_CLIENTSECRET respectively. See $(ansi blue https://bitwarden.com/help/personal-api-key/)."
     echo
-    echo "Uses the rust port of Age, see $(ansi cyan ${rageProjectUrl}) for details on features and key creation. Private"
-    echo "keys $(ansi bold_italic SHOULD) be protected by a strong password, and a copy of both the key and password stored offline in at"
-    echo "least one secure location."
+    echo "Backup files are encrypted with $(ansi cyan Age) public keys — see $(ansi blue ${rageProjectUrl}) for details on features"
+    echo "and key creation. In the $(ansi cyan Age) system, a public key is called a 'recipient' and a private key is called an"
+    echo "'identity'. Identities/private keys $(ansi bold_italic SHOULD) be protected by a strong password for this use case, and a copy"
+    echo "of both the key and password should be stored offline in $(ansi italic at least) one secure location."
     echo
     echo "$(ansi bold_green Note) A temporary directory is required during both operations, and $(ansi italic unencrypted) vault data will be stored there."
     echo "These files will be deleted by this script; however, file recovery software may still be able to read them long"
     echo "afterward. Standard security practice is to use encrypted storage to avoid this risk, so by default you will be"
     echo "prompted to agree that the temp directory is secured. If your system uses whole disk encryption, or if the"
-    echo "directory specified via -t is known to be encrypted (e.g. by VeraCrypt), this prompt can be suppressed via -s or"
-    echo "by setting the SKIP_TEMP_DIR_PROMPT environment variable."
+    echo "directory specified via -t is known to be encrypted (e.g. by VeraCrypt), this prompt can be suppressed by"
+    echo "setting the BW_BACKUP_TEMP_DIRECTORY environment variable (see below)."
     echo
     echo "Options:"
     echo
     echo "    -t, --temp-dir PATH            Use the directory at PATH for temporary storage."
-    echo "    -s, --skip-temp-dir-prompt     Skip temporary directory security prompt."
     echo "    -r, --recipient RECIPIENT      Encrypt to the specified RECIPIENT (public key). May be repeated."
     echo "    -R, --recipients-file PATH     Encrypt to the recipients (public keys) listed at PATH. May be repeated."
-    echo "    -o, --output-dir PATH          Use the directory at PATH to store the encrypted backup."
+    echo "    -b, --backup-dir PATH          Use the directory at PATH to store the encrypted backup."
     echo "    -n, --name NAME                Set a name to include in the backup file name."
     echo "    -u, --url URL                  Set the URL for the Bitwarden server. Defaults to ${defaultServerUrl}"
     echo "    --backup PATH                  Restore using the backup file at PATH."
@@ -42,15 +42,17 @@ usage() {
     echo
     echo "Environment Variables"
     echo
-    echo "    SKIP_TEMP_DIR_PROMPT           Skip the temporary directory security prompt. "
-    echo "    BACKUP_DIRECTORY               Set the default backup directory."
+    echo "    BW_CLIENTID                    Set the Bitwarden API key (REQUIRED)."
+    echo "    BW_CLIENTSECRET                Set the Bitwarden API key secret (REQUIRED)."
+    echo "    BW_BACKUP_RECIPIENT            Set default recipient. May be a path to a recipients file."
+    echo "    BW_BACKUP_DIR                  Set the default backup directory."
+    echo "    BW_BACKUP_SECURE_TEMP_DIR      Set the default secure temp directory. Use '@' to create a path via $(ansi italic mktemp)."
     bye "${@}"
 }
 
 main() {
-    init "${@}"
-    verifySecureTempDir
     assertExecutables requiredExecutables
+    init "${@}"
     ensureLatestCLI
     loginToVault
     syncVault
@@ -68,23 +70,27 @@ init() {
     readonly defaultServerUrl="https://vault.bitwarden.com"
     vaultName=
     vaultUrl=
-    suppliedTempDir=
-    assertSecureTempDir="${SKIP_TEMP_DIR_PROMPT:-''}"
     identities=
-    recipients=
-    backupDir=
     restoreFile=
+    suppliedTempDir="${BW_BACKUP_SECURE_TEMP_DIR}"
+    backupDir="${BW_BACKUP_DIR}"
+    recipients="${BW_BACKUP_RECIPIENT}"
+
+    [[ ${suppliedTempDir} && ${suppliedTempDir} != @ ]] && setDirVar suppliedTempDir "${suppliedTempDir}"
+    [[ ${backupDir} ]] && setDirVar backupDir "${backupDir}"
+    [[ ${recipients} && -f ${recipients} ]] && recipients="-R ${recipients}"
+
+# echo "-- BEGIN init ----------"; printVar suppliedTempDir recipients backupDir backupFile generatedTempDir # TODO REMOVE
 
     while ((${#} > 0)); do
         case "${1}" in
         --create) unset restoreFile ;;
         --restore) shift; setFileVar restoreFile "${1}" ;;
-        -t | --temp-dir) shift; setDirVar suppliedTempDir "${1}" "SECURE_TEMP_DIR" ;;
-        -s | --skip-temp-dir-prompt) unset assertSecureTempDir ;;
+        -t | --temp-dir) shift; setDirVar suppliedTempDir "${1}" "secure temp dir path" ;;
         -r | --recipient) shift; appendVar recipients "-r ${1}" ;;
         -R | --recipients-file) shift; assertFile "${1}" "recipients file"; appendVar recipients "-R ${1}" ;;
         -d | --identity) shift; assertFile "${1}" "identities file"; appendVar identities "-i ${1}" ;;
-        -o | --output-dir) shift; setDirVar backupDir "${1}" "OUTPUT_DIR" ;;
+        -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
         -n | --name) shift; vaultName="${1}" ;;
         -u | --url) shift; vaultUrl="${1}" ;;
         -h | --help) usage ;;
@@ -106,61 +112,66 @@ init() {
     readonly backupName="${vaultName}-backup-$(timeStamp)"
 
     if [[ ${backupDir} ]]; then
-        [[ -d ${backupDir} ]] || fail "Output directory ${backupDir} not found"
+        [[ -d ${backupDir} ]] || fail "Backup directory ${backupDir} not found"
         backupFile="${backupDir}/${backupName}.tar.gz.age"
     else
         backupFile="${backupName}.tar.gz.age"
     fi
 
-    setSecureTempDir
-    readonly tempDir="$(makeDir "${secureTempDir}" "${backupName}")"
-    chmod 700 "${tempDir}" || fail
+    addExitHandler cleanup
+
+    initSecureTempDir
     readonly vaultFile="${tempDir}/vault.json"
     readonly attachmentsDir="$(makeDir ${tempDir} attachments)"
-    cd "${secureTempDir}" || fail
 
-    addExitHandler logoutFromVault
+# echo "-- END init ----------"; printVar suppliedTempDir secureTempDir recipients backupDir backupFile generatedTempDir; bye # TODO REMOVE
 }
 
-setSecureTempDir() {
-    if [[ ${suppliedTempDir} ]]; then
+initSecureTempDir() {
+    local verifySecure
+    if [[ ${suppliedTempDir} == '' || ${suppliedTempDir} == '@' ]]; then
+
+        # Use the rayvn system temp dir which will be deleted by rayvn on exit
+
+        secureTempDir="$(tempDirPath)"
+
+    else
 
         # User supplied, so generate a temp dir within it. Remember the generated dir
         # to ensure we delete it on exit
 
         local randomDirName="$(basename "$(mktemp -d -u)")" || fail
+        suppliedTempDir="${suppliedTempDir}"
         generatedTempDir="$(makeDir ${suppliedTempDir} ${randomDirName})"
         secureTempDir=${generatedTempDir}
-    else
-
-        # Not supplied, so use the base temp dir which will be deleted by rayvn on exit
-
-        secureTempDir="$(tempDirPath)"
+        verifySecure=true
     fi
     [[ -d ${secureTempDir} ]] || fail "Secure temp directory ${secureTempDir} not found!"
+    cd "${secureTempDir}" || fail
+    readonly tempDir="$(makeDir "${secureTempDir}" "${backupName}")"
+    chmod 700 "${tempDir}" || fail
+    [[ ${verifySecure} ]] && verifySecureTempDir
 }
 
 verifySecureTempDir() {
-    if [[ ${assertSecureTempDir} ]]; then
-        local source
-        local reply
-        [[ ${secureTempDir} == $(tempDirPath) ]] && source="default" || source="supplied"
+    local source
+    local reply
+    [[ ${generatedTempDir} ]] && source="supplied '${suppliedTempDir}' as root of" || source="system"
+    echo
+    echo "$(ansi bold Verify configuration)"
+    echo
+    echo "Using ${source} temp directory: $(ansi blue ${secureTempDir})"
+    echo
+    read -t 30 -p "This directory SHOULD be encrypted to avoid leaking sensitive data. $(ansi bold_green Proceed?) [yes/no]: " reply
+    if [[ ${reply,,} != 'yes' ]]; then
         echo
-        echo "$(ansi bold Verify configuration)"
-        echo
-        echo "Using ${source} temp directory: $(ansi blue ${secureTempDir})"
-        echo
-        read -t 30 -p "This directory SHOULD be encrypted to avoid leaking sensitive data. Proceed? [yes/no]: " reply
-        if [[ ${reply,,} != 'yes' ]]; then
-            echo
-            fail "See help for more about this issue: ${scriptName} --help"
-        fi
+        fail "See help for more about this issue: ${scriptName} --help"
     fi
 }
 
 ensureLatestCLI() {
     echo
-    echo "$(ansi bold_blue Ensure Bitwarden CLI is current)"
+    echo "$(ansi bold_blue Checking Bitwarden CLI version)"
     echo
     local update="$(bw update 2>&1)"
     if [[ ${update} =~ "new version" ]]; then
@@ -178,7 +189,7 @@ loginToVault() {
     echo
     echo "$(ansi bold_blue Login to vault)"
 
-    logoutFromVault # just in case there is an active session
+    logoutFromVault force # just in case there is an active session
     bw config server "${vaultUrl}" > /dev/null
     bw login --apikey > /dev/null || fail
 
@@ -263,15 +274,21 @@ restoreVault() {
 }
 
 logoutFromVault() {
-    unset accountEmail
-    unset account2FA
-    if [[ ${session} ]]; then
+    if [[ ${1} == force ]]; then
+        echo "forcing logout" # TODO remove
+        bw logout > /dev/null 2>&1
+    elif [[ ${session} ]]; then
+        echo "logout session: ${session}" # TODO remove
         unset session
+        bw logout > /dev/null 2>&1
     fi
+}
+
+cleanup() {
+    logoutFromVault
     if [[ ${generatedTempDir} ]]; then
-        rm -rf "${generatedTempDir}" >/dev/null 2>&1 || warn "Failed to delete temp dir: ${generatedTempDir}"
+        rm -rf "${generatedTempDir}" > /dev/null 2>&1 || warn "Failed to delete temp dir: ${generatedTempDir}"
     fi
-    bw logout >/dev/null 2>&1
 }
 
 # Load core library
