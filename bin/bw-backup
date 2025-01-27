@@ -35,7 +35,7 @@ usage() {
     echo "    -b, --backup-dir PATH          Use the directory at PATH to store the encrypted backup."
     echo "    -n, --name NAME                Set a name to include in the backup file name."
     echo "    -u, --url URL                  Set the URL for the Bitwarden server. Defaults to ${defaultServerUrl}"
-    echo "    --backup PATH                  Restore using the backup file at PATH."
+    echo "    --restore PATH                 Restore using the backup file at PATH."
     echo "    -i, --identity IDENTITY        Restore using the identity (private key) file at IDENTITY. May be repeated."
     echo "    -h, --help                     Display usage and exit."
     echo "    --version                      Display version and exit."
@@ -56,7 +56,11 @@ main() {
     ensureLatestCLI
     loginToVault
     syncVault
-    backupVault
+    if [[ ${restoreFile} ]]; then
+        restoreVault
+    else
+        backupVault
+    fi
     logoutFromVault
 }
 
@@ -78,7 +82,7 @@ init() {
 
     [[ ${suppliedTempDir} && ${suppliedTempDir} != @ ]] && setDirVar suppliedTempDir "${suppliedTempDir}"
     [[ ${backupDir} ]] && setDirVar backupDir "${backupDir}"
-    [[ ${recipients} && -f ${recipients} ]] && recipients="-R ${recipients}"
+    [[ ${recipients} && -f ${recipients} ]] && recipients="-R ${recipients}" || recipients="-r ${recipients}"
 
 # echo "-- BEGIN init ----------"; printVar suppliedTempDir recipients backupDir backupFile generatedTempDir # TODO REMOVE
 
@@ -89,7 +93,7 @@ init() {
         -t | --temp-dir) shift; setDirVar suppliedTempDir "${1}" "secure temp dir path" ;;
         -r | --recipient) shift; appendVar recipients "-r ${1}" ;;
         -R | --recipients-file) shift; assertFile "${1}" "recipients file"; appendVar recipients "-R ${1}" ;;
-        -d | --identity) shift; assertFile "${1}" "identities file"; appendVar identities "-i ${1}" ;;
+        -i | --identity) shift; assertFile "${1}" "identities file"; appendVar identities "-i ${1}" ;;
         -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
         -n | --name) shift; vaultName="${1}" ;;
         -u | --url) shift; vaultUrl="${1}" ;;
@@ -253,6 +257,27 @@ backupVault() {
 }
 
 restoreVault() {
+    local backupFile="${restoreFile}"
+    local backupFileName="$(basename ${backupFile})"
+    local backupDate="${backupFileName##*backup-}"
+    backupDate="$(basename ${backupDate} .tar.gz.age)"
+
+    echo
+    echo "$(ansi bold Restoring) $(ansi bold_green ${backupFileName})"
+    echo
+
+    # Create new folder
+
+    local restoreFolder="Restore_${backupDate}"
+    local encodedFolder="$(bw get template folder --session "${session}" | jq ".name=\""${restoreFolder}"\"" | bw encode)"
+    #local encodedFolder="$(bw get template folder --session "${session}" | jq ".name=\""${restoreFolder}"\"" | bw encode)"
+    #bw get template folder --session "${session}" "${encodedFolder}"
+    local folderId="$(bw create folder "${encodedFolder}" --session "${session}" | jq -r ".id")"
+
+    echo "${restoreFolder} id: ${folderId}"
+}
+
+
     # On import:
     #
     # 1. imported items are DUPLICATED, with new IDs
@@ -270,15 +295,13 @@ restoreVault() {
     # $ bw get template folder | jq '.name="Restore: Jan 20, 2025 11:23am"' | bw encode | bw create folder
     # {"object":"folder","id":"0b0cb093-500c-4b37-9067-b26b013fb31a","name":"Restore: Jan 20, 2025 11:23am"}
 
-    echo
-}
+
+
 
 logoutFromVault() {
     if [[ ${1} == force ]]; then
-        echo "forcing logout" # TODO remove
         bw logout > /dev/null 2>&1
     elif [[ ${session} ]]; then
-        echo "logout session: ${session}" # TODO remove
         unset session
         bw logout > /dev/null 2>&1
     fi
