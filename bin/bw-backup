@@ -271,24 +271,35 @@ restoreVault() {
     local backupFileName="$(basename ${backupFile})"
     local backupDate="$(basename ${backupFileName##*backup-} .${backupFileSuffix})"
     local restoreFolder="${restoreFolderPrefix} ${backupDate}"
+    local reply
 
     echo
-    echo "$(ansi bold Restoring) $(ansi bold_green ${backupFileName}) to folder '${restoreFolder}'"
+    echo "$(ansi bold Restoring) $(ansi bold_green ${backupFileName})"
     echo
-
-
+    echo "Creating folder '${restoreFolder}' for restored items."
+    echo
 
     # Does the folder already exist?
 
-    local existing="$(bw get folder "${restoreFolder}" --session "${session}")"
-    if [[ ${existing} ]]; then
+    local existingFolder="$(bw get folder "${restoreFolder}" --session "${session}" 2> /dev/null)"
+    if [[ ${existingFolder} ]]; then
         # TODO: maybe offer to delete the folder and all items in it??
-        # 1. imported items are DUPLICATED, with new IDs
-        # 2. imported folders with same id are NOT DUPLICATED
-        # 3. Deleting a folder (on UI) automatically just moves items tagged in that folder OUt of it.
+        printRed "The restore folder is already in your vault, so this backup file has likely already been restored."
+        printRed "To restore using this file you should delete all items in this folder as well as the folder itself."
+        fail
+    fi
 
-        warn "This backup file has already been restored to folder '${restoreFolder}'"
-        fail "To restore this file you should delete all items in this folder, and the folder itself."
+    # Are there existing items?
+
+    local existingItemsCount=$(bw list items --session "${session}" | jq length)
+    if (( ${existingItemsCount} > 0 )); then
+        warn "Your vault has ${existingItemsCount} existing items"
+        echo
+        echo "Any items from the backup that have the same names as existing items will result in duplicates,"
+        echo "though they will be in the new folder."
+        echo
+        read -t 30 -p "$(ansi bold_green Proceed?) [yes/no]: " reply
+        [[ ${reply,,} == 'yes' ]] || fail
     fi
 
     # Create new folder
