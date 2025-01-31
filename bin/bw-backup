@@ -12,8 +12,12 @@ usage() {
     echo "Usage: $(ansi bold_blue ${scriptName}) [--create] (-r RECIPIENT | -R PATH)... [-b BACKUP_DIR]"
     echo "       $(ansi bold_blue ${scriptName}) --restore BACKUP_FILE -i IDENTITY"
     echo
-    echo "The Bitwarden CLI is used and an API key and secret is required, both of which must be set in the environment"
-    echo "variables BW_CLIENTID and BW_CLIENTSECRET respectively. See $(ansi blue https://bitwarden.com/help/personal-api-key/)."
+    echo "The Bitwarden CLI is used to access the vault. Login/unlock requires user input: credentials are never stored."
+    echo "Using an API key simplifies login, requiring only master password input rather than full credentials. This is"
+    echo "enabled by setting the BW_CLIENTID and BW_CLIENTSECRET environment variables, for details see"
+    echo "$(ansi blue https://bitwarden.com/help/personal-api-key/)."
+    echo
+    echo "The Bitwarden CLI is used, and  and an API key and secret is required, both of which must be "
     echo
     echo "Backup files are encrypted with $(ansi cyan Age) public keys — see $(ansi blue ${rageProjectUrl}) for details on features"
     echo "and key creation. In the $(ansi cyan Age) system, a public key is called a 'recipient' and a private key is called an"
@@ -42,8 +46,8 @@ usage() {
     echo
     echo "Environment Variables"
     echo
-    echo "    BW_CLIENTID                    Set the Bitwarden API key (REQUIRED)."
-    echo "    BW_CLIENTSECRET                Set the Bitwarden API key secret (REQUIRED)."
+    echo "    BW_CLIENTID                    Set the Bitwarden API key."
+    echo "    BW_CLIENTSECRET                Set the Bitwarden API key secret."
     echo "    BW_BACKUP_PREFIX               Set default backup name prefix."
     echo "    BW_BACKUP_RECIPIENT            Set default recipient. May be a path to a recipients file."
     echo "    BW_BACKUP_DIR                  Set the default backup directory."
@@ -66,8 +70,6 @@ main() {
 }
 
 init() {
-    [[ ${BW_CLIENTID} ]] || fail "BW_CLIENTID env var not set"
-    [[ ${BW_CLIENTSECRET} ]] || fail "BW_CLIENTSECRET env var not set"
     [[ ${LANG} =~ .UTF-8 ]] || warn "The LANG env var should be a UTF-8 type, but is ${LANG}"
 
     readonly scriptName="$(basename "${0}")"
@@ -117,7 +119,7 @@ init() {
 
     [[ ${namePrefix} ]] || namePrefix="${USER}"
     [[ ${vaultUrl} ]] || vaultUrl="${defaultServerUrl}"
-    readonly backupName="${namePrefix}-backup-$(timeStamp)"
+    readonly backupName="${namePrefix}-backup-$(epochSeconds)-$(timeStamp)"
 
     if [[ ${backupDir} ]]; then
         backupFile="${backupDir}/${backupName}.${backupFileSuffix}"
@@ -200,17 +202,34 @@ loginToVault() {
 
     logoutFromVault force # just in case there is an active session
     bw config server "${vaultUrl}" > /dev/null
-    bw login --apikey > /dev/null || fail "login failed"
 
-    if [[ ${BW_BACKUP_DEV_PWD} ]]; then
-        session="$(bw unlock --raw --passwordenv BW_BACKUP_DEV_PWD)"
+    if [[ ${BW_CLIENTID} ]]; then
+
+        # Use api key
+
+        bw login --apikey > /dev/null || fail "login failed"
+        if [[ ${BW_BACKUP_DEV_PWD} ]]; then
+            session="$(bw unlock --raw --passwordenv BW_BACKUP_DEV_PWD)"
+        else
+            for i in {1..3}; do
+                echo
+                session="$(bw unlock --raw)" && break
+            done
+        fi
+        stopBackgroundSpinner true
     else
-        for i in {1..3}; do
-            echo
-            session="$(bw unlock --raw)" && break
-        done
+        stopBackgroundSpinner true
+        if [[ ${BW_BACKUP_DEV_PWD} ]]; then
+            session="$(bw login --raw --passwordenv BW_BACKUP_DEV_PWD)"
+        else
+            for i in {1..3}; do
+                echo
+                session="$(bw login --raw)" && break
+            done
+        fi
+        echo
     fi
-    stopBackgroundSpinner true
+
     [[ ${session} ]] || fail "login failed"
 
     echo "$(ansi bold_green Logged in.)"
@@ -269,8 +288,11 @@ backupVault() {
 restoreVault() {
     local backupFile="${restoreFile}"
     local backupFileName="$(basename ${backupFile})"
-    local backupDate="$(basename ${backupFileName##*backup-} .${backupFileSuffix})"
+    local backupDate="$(basename ${backupFileName#*backup-*-} .${backupFileSuffix})"
+    local backupSeconds="$(echo ${backupFileName##*backup-} | cut -d'-' -f1)"
+    local currentSeconds=$(epochSeconds)
     local restoreFolder="${restoreFolderPrefix} ${backupDate}"
+    # printVar backupFile backupFileName backupDate backupSeconds currentSeconds # TODO REMOVE
     local reply
 
     echo
