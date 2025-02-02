@@ -79,7 +79,7 @@ init() {
     readonly defaultServerUrl="https://vault.bitwarden.com"
     readonly backupFileSuffix="tar.gz.age"
     readonly restoreFolderPrefix="🔥"
-    BW_SESSION=
+    unset BW_SESSION
     namePrefix="${BW_BACKUP_PREFIX}"
     vaultUrl=
     identities=
@@ -91,8 +91,6 @@ init() {
     [[ ${suppliedTempDir} && ${suppliedTempDir} != @ ]] && setDirVar suppliedTempDir "${suppliedTempDir}"
     [[ ${backupDir} ]] && setDirVar backupDir "${backupDir}"
     [[ ${recipients} && -f ${recipients} ]] && recipients="-R ${recipients}" || recipients="-r ${recipients}"
-
-# echo "-- BEGIN init ----------"; printVar suppliedTempDir recipients backupDir backupFile generatedTempDir # TODO REMOVE
 
     while ((${#} > 0)); do
         case "${1}" in
@@ -133,8 +131,6 @@ init() {
     initSecureTempDir
     readonly vaultFile="${tempDir}/vault.json"
     readonly attachmentsDir="$(makeDir ${tempDir} attachments)"
-
-# echo "-- END init ----------"; printVar suppliedTempDir secureTempDir recipients backupDir backupFile generatedTempDir; bye # TODO REMOVE
 }
 
 initSecureTempDir() {
@@ -200,6 +196,8 @@ loginToVault() {
     startSpinner
 
     logoutFromVault force # just in case there is an active session
+    declare -gx BW_SESSION
+
     bw config server "${vaultUrl}" > /dev/null
 
     if [[ ${BW_CLIENTID} ]]; then
@@ -293,8 +291,12 @@ restoreVault() {
     local backupFile="${restoreFile}"
     local backupFileName="$(basename ${backupFile})"
     local backupDate="$(basename ${backupFileName#*backup-*-} .${backupFileSuffix})"
-    local folderName=
-    local folderId=
+    local restoreName="${restoreFolderPrefix} ${backupDate}"
+
+    echo
+    echo "$(ansi bold_blue Checking vault)"
+    echo
+    assertVaultEmpty
 
     echo
     echo "$(ansi bold_blue Restoring vault)"
@@ -302,14 +304,39 @@ restoreVault() {
     echo "Restoring vault from $(ansi bold_green ${backupFileName})"
     echo
 
-    createFolder "${restoreFolderPrefix} ${backupDate}" folderName folderId
-    echo
-    echo "Restoring into folder '${folderName}'"
-
-    # printVar folderName folderId
+    # TODO implement!
+    # Add a note with ${restoreName}!!
+    printVar restoreName
+    echo "TBD"
 }
 
-createFolder() {
+assertVaultEmpty() {
+    local vault="$(bw export --raw --format json)"
+
+    local orgVault="$(echo "${vault}" | jq '.collections != null' | grep true)"
+    [[ ${orgVault} ]] && fail "Cannot restore to an Organization vault (yet)."
+
+    local itemsCount=$(echo "${vault}" | jq '.items // 0 | length')
+    (( itemsCount == 0 )) || failVaultNotEmpty
+
+    local foldersCount=$(echo "${vault}" | jq '.folders // 0 | length')
+    (( foldersCount == 0 )) || failVaultNotEmpty
+}
+
+failVaultNotEmpty() {
+    warn "This vault must be empty before restoring to it."
+    echo
+    echo "If you are $(ansi bold not sure) that you have a current backup, make another one!"
+    echo "When ready, do the following to empty your vault:"
+    echo
+    echo "  1. In a browser, login at $(ansi blue ${vaultUrl})."
+    echo "  2. Under $(ansi bold Settings) (in the left pane), click $(ansi bold My Account)."
+    echo "  3. In the $(ansi bold_red Danger zone) section, click $(ansi bold_red Purge vault)."
+    echo "  4. In the popup, enter you master password and click $(ansi bold_red Purge vault)."
+    fail
+}
+
+createFolder() {  # TODO REMOVE
     local baseFolder="${1}"
     local -n resultName="${2}"
     local -n resultId="${3}"
@@ -354,7 +381,7 @@ createFolder() {
     fi
 }
 
-checkVault() { # TODO REMOVE!
+checkVault() { # TODO REMOVE
 
     # Does the folder already exist?
 
@@ -417,7 +444,6 @@ logoutFromVault() {
     if [[ ${1} == force ]]; then
         bw logout > /dev/null 2>&1
     elif [[ ${BW_SESSION} ]]; then
-        unset BW_SESSION
         if [[ ${1} == verbose ]]; then
             echo
             echo "$(ansi bold_blue Logging out of vault)  "
@@ -428,6 +454,7 @@ logoutFromVault() {
             bw logout > /dev/null 2>&1
         fi
     fi
+    unset BW_SESSION
 }
 
 cleanup() {
