@@ -1,0 +1,37 @@
+{
+  "encrypted": false,
+  "folders": [
+    {
+      "id": "3a5fc53f-eacc-4a8b-9d08-b27800f8fce0",
+      "name": "Folder One"
+    },
+    {
+      "id": "e4d9fd82-1b48-4380-bde1-b27800f91005",
+      "name": "Folder Two"
+    }
+  ],
+  "items": [
+    {
+      "passwordHistory": null,
+      "revisionDate": "2025-02-02T15:11:22.886Z",
+      "creationDate": "2025-02-02T15:08:40.236Z",
+      "deletedDate": null,
+      "id": "6b169dbd-5c3c-4735-9114-b27800f992e9",
+      "organizationId": null,
+      "folderId": "3a5fc53f-eacc-4a8b-9d08-b27800f8fce0",
+      "type": 1,
+      "reprompt": 0,
+      "name": "Item One In Folder One",
+      "notes": null,
+      "favorite": false,
+      "login": {
+        "fido2Credentials": [],
+        "uris": [],
+        "username": "User One",
+        "password": "Pass",
+        "totp": null
+      },
+      "collectionIds": null
+    }
+  ]
+}
