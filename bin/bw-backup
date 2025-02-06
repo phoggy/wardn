@@ -252,7 +252,7 @@ backupVault() {
 
     bw export --raw --format json > "${vaultFile}" || failSpin
 
-    items="$(bw list items )"
+    items="$(bw list items)"
 
     attachmentItemIds="$(echo ${items} | jq -r ".[] | select(.attachments).id")"
 
@@ -296,7 +296,7 @@ restoreVault() {
     echo
     echo "$(ansi bold_blue Checking vault)"
     echo
-    assertVaultEmpty
+   # assertVaultEmpty TODO RESTORE
 
     echo
     echo "$(ansi bold_blue Restoring vault)"
@@ -306,7 +306,15 @@ restoreVault() {
 
     # TODO implement!
     # Add a note with ${restoreName}!!
-    printVar restoreName
+
+printVar identities
+    decryptedFile="/Users/batsatt/backup.tar.gz" # TODO
+    rage -d -i /Users/batsatt/dev-age.key -o "${decryptedFile}" "${backupFile}"   # TODO here!
+    gunzip "${decryptedFile}"
+    read -p "continue "
+
+    # rage -d -i ~/dev-age.key -o "backup.tar.gz" "${backupFile}"
+
     echo "TBD"
 }
 
