@@ -10,8 +10,8 @@ usage() {
     echo
     echo "$(ansi bold Create a backup of a Bitwarden vault or restore a vault from one, secured by an) $(ansi cyan Age) $(ansi bold public key pair.)"
     echo
-    echo "Usage: $(ansi bold_blue ${scriptName}) [--create] (-r RECIPIENT | -R PATH)... [-b BACKUP_DIR]"
-    echo "       $(ansi bold_blue ${scriptName}) --restore BACKUP_FILE -i IDENTITY"
+    echo "Usage: $(ansi bold_blue ${scriptName}) [backup] (-r RECIPIENT | -R PATH)... [-b BACKUP_DIR]"
+    echo "       $(ansi bold_blue ${scriptName}) restore BACKUP_FILE -i IDENTITY"
     echo
     echo "The Bitwarden CLI is used to access the vault. Login/unlock requires user input: credentials are never stored."
     echo "Using an API key simplifies login, requiring only master password input rather than full credentials. This is"
@@ -40,7 +40,6 @@ usage() {
     echo "    -b, --backup-dir PATH          Use the directory at PATH to store the encrypted backup."
     echo "    -p, --prefix PREFIX            Set a prefix for the backup file name."
     echo "    -u, --url URL                  Set the URL for the Bitwarden server. Defaults to ${defaultServerUrl}"
-    echo "    --restore PATH                 Restore using the backup file at PATH."
     echo "    -i, --identity IDENTITY        Restore using the identity (private key) file at IDENTITY. May be repeated."
     echo "    -h, --help                     Display usage and exit."
     echo "    --version                      Display version and exit."
@@ -79,17 +78,17 @@ init() {
     readonly defaultServerUrl="https://vault.bitwarden.com"
     readonly backupFileSuffix="tar.gz.age"
     readonly restoreFolderPrefix="🔥"
-    declare -grx passwordVisibility="${BW_BACKUP_PASSWORD_VISIBILITY:-none}"
+    declare -grx passwordVisibility="${VALT_BACKUP_PASSWORD_VISIBILITY:-none}"
     useRayvnPinEntry
 
     unset BW_SESSION
-    namePrefix="${BW_BACKUP_PREFIX}"
+    namePrefix="${VALT_BACKUP_PREFIX}"
     vaultUrl=
     identities=
     restoreFile=
-    suppliedTempDir="${BW_BACKUP_SECURE_TEMP_DIR}"
-    backupDir="${BW_BACKUP_DIR}"
-    recipients="${BW_BACKUP_RECIPIENT}"
+    suppliedTempDir="${VALT_BACKUP_SECURE_TEMP_DIR}"
+    backupDir="${VALT_BACKUP_DIR}"
+    recipients="${VALT_BACKUP_RECIPIENT}"
 
     [[ ${suppliedTempDir} && ${suppliedTempDir} != @ ]] && setDirVar suppliedTempDir "${suppliedTempDir}"
     [[ ${backupDir} ]] && setDirVar backupDir "${backupDir}"
@@ -97,8 +96,8 @@ init() {
 
     while ((${#} > 0)); do
         case "${1}" in
-        --create) unset restoreFile ;;
-        --restore) shift; setFileVar restoreFile "${1}" ;;
+        backup) unset restoreFile ;;
+        restore) shift; setFileVar restoreFile "${1}" ;;
         -t | --temp-dir) shift; setDirVar suppliedTempDir "${1}" "secure temp dir path" ;;
         -r | --recipient) shift; appendVar recipients "-r ${1}" ;;
         -R | --recipients-file) shift; assertFile "${1}" "recipients file"; appendVar recipients "-R ${1}" ;;
@@ -107,7 +106,7 @@ init() {
         -p | --prefix) shift; namePrefix="${1}" ;;
         -u | --url) shift; vaultUrl="${1}" ;;
         -h | --help) usage ;;
-        -v | --version) version "${BW_BACKUP_VERSION}" ;;
+        -v | --version) version "${VALT_BACKUP_VERSION}" ;;
         *) fail "Unknown argument: ${1}" ;;
         esac
         shift
@@ -208,8 +207,8 @@ loginToVault() {
         # Use api key
 
         bw login --apikey > /dev/null || fail "login failed"
-        if [[ ${BW_BACKUP_DEV_PWD} ]]; then
-            BW_SESSION="$(bw unlock --raw --passwordenv BW_BACKUP_DEV_PWD)"
+        if [[ ${VALT_BACKUP_DEV_PWD} ]]; then
+            BW_SESSION="$(bw unlock --raw --passwordenv VALT_BACKUP_DEV_PWD)"
         else
             for retryIndex in {1..3}; do
                 echo
@@ -219,8 +218,8 @@ loginToVault() {
         stopSpinner true
     else
         stopSpinner true
-        if [[ ${BW_BACKUP_DEV_PWD} ]]; then
-            BW_SESSION="$(bw login --raw --passwordenv BW_BACKUP_DEV_PWD)"
+        if [[ ${VALT_BACKUP_DEV_PWD} ]]; then
+            BW_SESSION="$(bw login --raw --passwordenv VALT_BACKUP_DEV_PWD)"
         else
             for retryIndex in {1..3}; do
                 echo
