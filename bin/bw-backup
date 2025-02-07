@@ -313,7 +313,6 @@ restoreVault() {
     tar -xvf "${decryptedFile}"
     echo "decrypted to ${decryptedFile}"
 
-    # rage -d -i ~/dev-age.key -o "backup.tar.gz" "${backupFile}"
 }
 
 assertVaultEmpty() {
@@ -341,110 +340,6 @@ failVaultNotEmpty() {
     echo "  4. In the popup, enter you master password and click $(ansi bold_red Purge vault)."
     fail
 }
-
-createFolder() {  # TODO REMOVE
-    local baseFolder="${1}"
-    local -n resultName="${2}"
-    local -n resultId="${3}"
-    resultName=
-    resultId=
-
-    echo -n "Creating folder for restored items "
-    startSpinner
-
-    # Make sure we have a unique folder name, in case this has previously been restored
-
-    local checkFolder="${baseFolder}"
-    local retryIndex=
-    local retryCount=0
-
-    for retryIndex in {1..100}; do
-
-        # Does the folder already exist?
-
-        local existingFolder="$(bw get folder "${checkFolder}" 2>&1)" # just in case multiple already exist
-        if [[ ${existingFolder} =~ Not ]]; then
-            resultName="${checkFolder}" # No, so use this one.
-            break;
-        else
-            (( retryCount++ ))
-            checkFolder="${baseFolder}.${retryIndex}" # Yes, so update suffix
-        fi
-    done
-    [[ ${resultName} ]] || fail "Too many existing folders for this backup!"
-
-    # Create the folder
-
-    local defaultJson="$(bw get template folder)"
-    local encodedFolder="$(echo "${defaultJson/Folder name/${resultName}}" | bw encode)"
-    resultId="$(bw create folder "${encodedFolder}"  | jq -r ".id")"
-    stopSpinner true
-
-    if (( ${retryCount} == 1 )); then
-         warn "A folder for this backup already exists, added suffix to make unique."
-    elif (( ${retryCount} > 1 )); then
-        warn "${retryIndex} folders for this backup already exist, added suffix to make unique."
-    fi
-}
-
-checkVault() { # TODO REMOVE
-
-    # Does the folder already exist?
-
-    local existingFolder="$(bw get folder "${restoreFolder}" 2> /dev/null)"
-    if [[ ${existingFolder} ]]; then
-
-        # TODO: maybe offer to delete the folder and all items in it??
-
-        failSpin "The restore folder is already in your vault, so this backup file has likely already been restored.\n" \
-                 "To restore using this file you should delete all items in this folder as well as the folder itself."
-    fi
-
-    # No. Are there existing items?
-
-    local existingItems="$(bw list items)"
-    local existingItemsCount=$(echo "${existingItems}" | jq length)
-    if (( ${existingItemsCount} > 0 )); then
-
-        # Yes. Let's see if there are any items with a mod date newer than the backup time
-
-        local utcDate utcDates=() newerItemCount=0
-        readarray -t utcDates < <(echo ${existingItems} | jq -r '.[] | [.revisionDate] | join(",")')
-        for utcDate in "${utcDates[@]}"; do
-
-            # TODO: this conversion works on Mac, but local epochSeconds=$(date -d "%{utcDate}" +%s) SHOULD work elsewhere
-            #       Add the switch, and TEST the latter somehow.
-
-            # [[ ${macOS} ]]
-
-            local epochSeconds=$(date -j -f "%Y-%m-%dT%H:%M:%S%z" "${utcDate%.*}+0000" +%s)
-            if (( ${epochSeconds} > ${backupSeconds} )); then
-                (( newerItemCount++ ))
-            fi
-        done
-
-        stopSpinner true
-
-        if (( ${newerItemCount} == 0 )); then
-            warn "Your vault has ${existingItemsCount} existing items."
-        elif (( ${newerItemCount} == 1 )); then
-            warn "Your vault has ${existingItemsCount} existing items, 1 of which is more recent than this backup."
-        else
-            warn "Your vault has ${existingItemsCount} existing items, ${newerItemCount} of which are more recent than this backup."
-        fi
-
-        echo
-        echo "Any items in this backup that have the same names as existing items will result in duplicates,"
-        echo "though they will be in a new folder: '${restoreFolder}'."
-        echo
-        read -t 30 -p "$(ansi bold_green Proceed?) [yes/no]: " reply
-        [[ ${reply,,} == 'yes' ]] || fail
-        echo
-    fi
-}
-
-
-
 
 logoutFromVault() {
     if [[ ${1} == force ]]; then
