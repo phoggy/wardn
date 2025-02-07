@@ -80,6 +80,7 @@ init() {
     readonly backupFileSuffix="tar.gz.age"
     readonly restoreFolderPrefix="🔥"
     declare -grx passwordVisibility="${BW_BACKUP_PASSWORD_VISIBILITY:-none}"
+    useRayvnPinEntry
 
     unset BW_SESSION
     namePrefix="${BW_BACKUP_PREFIX}"
@@ -277,9 +278,8 @@ backupVault() {
         done
     done
 
-    enablePinEntry # TODO can recipients be encrypted?
+    # TODO can recipients be encrypted?
     tar cz "${backupName}" | rage ${recipients} > ${backupFile} || failSpin
-    disablePinEntry
     local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
 
     stopSpinner true
@@ -287,15 +287,10 @@ backupVault() {
 }
 
 restoreVault() {
-
-    # 1. imported items are DUPLICATED, with new IDs
-    # 2. imported folders with same id are NOT DUPLICATED
-    # 3. Deleting a folder (on UI) automatically just moves items tagged in that folder OUt of it.
-
     local backupFile="${restoreFile}"
     local backupFileName="$(basename ${backupFile})"
     local backupDate="$(basename ${backupFileName#*backup-*-} .${backupFileSuffix})"
-    local restoreName="${restoreFolderPrefix} ${backupDate}"
+    local restoreNoteName="${restoreFolderPrefix} ${backupDate}"
 
     echo
     echo "$(ansi bold_blue Checking vault)"
@@ -309,15 +304,12 @@ restoreVault() {
     echo
 
     # TODO implement!
-    # Add a note with ${restoreName}!!
+    # Add a note with ${restoreNoteName}!!
 
 
     decryptedFile="/Users/batsatt/backup.tar" # TODO
 
-    enablePinEntry
     rage -d ${identities} "${backupFile}" -o "${decryptedFile}" 2> >(redStream) || fail
-    disablePinEntry
-
     tar -xvf "${decryptedFile}"
     echo "decrypted to ${decryptedFile}"
 
