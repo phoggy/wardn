@@ -53,6 +53,7 @@ usage() {
     echo "    BW_BACKUP_RECIPIENT            Set default recipient. May be a path to a recipients file."
     echo "    BW_BACKUP_DIR                  Set the default backup directory."
     echo "    BW_BACKUP_SECURE_TEMP_DIR      Set the default secure temp directory. Use '@' to create a path via $(ansi italic mktemp)."
+    echo "    BW_BACKUP_PASSWORD_VISIBILITY  Set the visibility of password entry characters: none, hide, show. Default: none"
     bye "${@}"
 }
 
@@ -74,11 +75,12 @@ init() {
     [[ ${LANG} =~ .UTF-8 ]] || warn "The LANG env var should be a UTF-8 type, but is ${LANG}"
 
     readonly scriptName="$(basename "${0}")"
-    declare -grx PINENTRY_PROGRAM="${RAYVN_BIN_DIR}/rayvn-pinentry"
     readonly rageProjectUrl='https://github.com/str4d/rage'
     readonly defaultServerUrl="https://vault.bitwarden.com"
     readonly backupFileSuffix="tar.gz.age"
     readonly restoreFolderPrefix="🔥"
+    declare -grx passwordVisibility="${BW_BACKUP_PASSWORD_VISIBILITY:-none}"
+
     unset BW_SESSION
     namePrefix="${BW_BACKUP_PREFIX}"
     vaultUrl=
@@ -275,7 +277,9 @@ backupVault() {
         done
     done
 
+    enablePinEntry # TODO can recipients be encrypted?
     tar cz "${backupName}" | rage ${recipients} > ${backupFile} || failSpin
+    disablePinEntry
     local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
 
     stopSpinner true
@@ -296,7 +300,7 @@ restoreVault() {
     echo
     echo "$(ansi bold_blue Checking vault)"
     echo
-   # assertVaultEmpty TODO RESTORE
+   # assertVaultEmpty TODO RESTORE!!
 
     echo
     echo "$(ansi bold_blue Restoring vault)"
@@ -307,15 +311,17 @@ restoreVault() {
     # TODO implement!
     # Add a note with ${restoreName}!!
 
-printVar identities
-    decryptedFile="/Users/batsatt/backup.tar.gz" # TODO
-    rage -d -i /Users/batsatt/dev-age.key -o "${decryptedFile}" "${backupFile}"   # TODO here!
-    gunzip "${decryptedFile}"
-    read -p "continue "
+
+    decryptedFile="/Users/batsatt/backup.tar" # TODO
+
+    enablePinEntry
+    rage -d ${identities} "${backupFile}" -o "${decryptedFile}" 2> >(redStream) || fail
+    disablePinEntry
+
+    tar -xvf "${decryptedFile}"
+    echo "decrypted to ${decryptedFile}"
 
     # rage -d -i ~/dev-age.key -o "backup.tar.gz" "${backupFile}"
-
-    echo "TBD"
 }
 
 assertVaultEmpty() {
