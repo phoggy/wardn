@@ -1,2 +1,2 @@
 # valt
-# Backup and restore Bitwardent vaults.
+# Backup and restore Bitwarden vaults.
