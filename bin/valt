@@ -59,8 +59,10 @@ usage() {
 main() {
     assertExecutables requiredExecutables
     init "${@}"
-    ensureLatestCLI
-    loginToVault
+    if ! useParentSession; then
+        ensureLatestCLI
+        loginToVault
+    fi
     syncVault
     if [[ ${restoreFile} ]]; then
         restoreVault
@@ -81,10 +83,10 @@ init() {
     declare -grx passwordVisibility="${VALT_BACKUP_PASSWORD_VISIBILITY:-none}"
     useRayvnPinEntry
 
-    unset BW_SESSION
     namePrefix="${VALT_BACKUP_PREFIX}"
     vaultUrl=
     identities=
+    backupFile=
     restoreFile=
     suppliedTempDir="${VALT_BACKUP_SECURE_TEMP_DIR}"
     backupDir="${VALT_BACKUP_DIR}"
@@ -112,27 +114,36 @@ init() {
         shift
     done
 
-    if [[ ${restoreFile} ]]; then
-        [[ ${identities} ]] || fail "one or more identities required"
-    else
-        [[ ${recipients} ]] || fail "one or more recipients required"
-    fi
-
-    [[ ${namePrefix} ]] || namePrefix="${USER}"
     [[ ${vaultUrl} ]] || vaultUrl="${defaultServerUrl}"
-    readonly backupName="${namePrefix}-backup-$(timeStamp)"
 
-    if [[ ${backupDir} ]]; then
-        backupFile="${backupDir}/${backupName}.${backupFileSuffix}"
+    if [[ ! ${restoreFile} ]]; then
+
+        # backup
+
+        [[ ${recipients} ]] || fail "one or more recipients required"
+        [[ ${namePrefix} ]] || namePrefix="${USER}"
+        readonly backupName="${namePrefix}-backup-$(timeStamp)"
+
+        if [[ ${backupDir} ]]; then
+            backupFile="${backupDir}/${backupName}.${backupFileSuffix}"
+        else
+            backupFile="${backupName}.${backupFileSuffix}"
+        fi
     else
-        backupFile="${backupName}.${backupFileSuffix}"
+
+        # restore
+
+        [[ ${identities} ]] || fail "one or more identities required"
+        readonly backupName="$(basename ${restoreFile} | cut -d'.' -f1-3)"
     fi
 
     addExitHandler cleanup
 
     initSecureTempDir
-    readonly vaultFile="${tempDir}/vault.json"
-    readonly attachmentsDir="$(makeDir ${tempDir} attachments)"
+    readonly secureWorkDir="$(makeDir "${secureTempDir}" "${backupName}")"
+    chmod 700 "${secureWorkDir}" || fail
+    readonly vaultFile="${secureWorkDir}/vault.json"
+    readonly attachmentsDir="$(makeDir ${secureWorkDir} attachments)"
 }
 
 initSecureTempDir() {
@@ -156,8 +167,6 @@ initSecureTempDir() {
     fi
     [[ -d ${secureTempDir} ]] || fail "Secure temp directory ${secureTempDir} not found!"
     cd "${secureTempDir}" || fail
-    readonly tempDir="$(makeDir "${secureTempDir}" "${backupName}")"
-    chmod 700 "${tempDir}" || fail
     [[ ${verifySecure} ]] && verifySecureTempDir
 }
 
@@ -189,6 +198,21 @@ ensureLatestCLI() {
         fail
     fi
     echo "$(ansi bold_green "$(which bw)") is the latest version ($(bw --version))"
+}
+
+useParentSession() {
+    if [[ ${VALT_USE_PARENT_SESSION} && ${BW_SESSION} ]]; then
+        if [[ $(sessionStatus) == unlocked ]]; then
+            echo
+            echo "$(ansi bold Using parent session)"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+sessionStatus() {
+    bw status | jq -r .status
 }
 
 loginToVault() {
@@ -249,7 +273,6 @@ backupVault() {
     echo
     echo "$(ansi bold_blue Backing up vault)  "
     echo
-    #echo -n "$(ansi italic working) "
     startSpinner
 
     bw export --raw --format json > "${vaultFile}" || failSpin
@@ -294,7 +317,7 @@ restoreVault() {
     echo
     echo "$(ansi bold_blue Checking vault)"
     echo
-   # assertVaultEmpty TODO RESTORE!!
+    assertVaultEmpty
 
     echo
     echo "$(ansi bold_blue Restoring vault)"
@@ -302,16 +325,58 @@ restoreVault() {
     echo "Restoring vault from $(ansi bold_green ${backupFileName})"
     echo
 
-    # TODO implement!
+    # Extract contents of decrypted backup file to secureWorkDir
+
+    cd "${secureWorkDir}" || fail
+    local tarFile="backup.tar"
+    rage -d ${identities} "${backupFile}" -o "${tarFile}" 2> >(redStream) || fail
+    echo
+
+# TODO    startSpinner # don't start until here, since the above will likely prompt for a password
+
+    tar -xf "${tarFile}" --strip-components=1 || fail
+    rm "${tarFile}"
+
+    # Get vault and grab some stats from it
+
+    local vault="$(cat "vault.json")"
+    local itemsCount=$(echo "${vault}" | jq '.items // 0 | length')
+    local foldersCount=$(echo "${vault}" | jq '.folders // 0 | length')
+
+    # Import vault
+
+    bw import bitwardenjson "vault.json" || fail
+    local newVault="$(bw export --format json --raw)" || fail
+
+    echo "${vault}" > ~/orig.json
+    echo "${newVault}" > ~/new.json
+    ls -l ~/orig.json
+    ls -l ~/new.json
+    bye
+
+    # Map the old item ids to the new ones
+
+
+    # Process attachments
+
+    local dir attachmentItemId attachmentsCount=0
+    cd "attachments" || fail
+    for dir in ./*; do
+        local attachmentItemId="$(basename ${dir})"
+        for file in "${attachmentItemId}"/*; do
+            (( attachmentsCount++ ))
+            echo "id: ${attachmentItemId}, file: ${file}"
+
+            # TODO: need to map from this orig attachementId to new one!!!
+            bw create attachment --file "${file}" --itemid "${attachmentItemId}" || fail
+        done
+    done
+
     # Add a note with ${restoreNoteName}!!
 
+ # TODO   stopSpinner
 
-    decryptedFile="/Users/batsatt/backup.tar" # TODO
-
-    rage -d ${identities} "${backupFile}" -o "${decryptedFile}" 2> >(redStream) || fail
-    tar -xvf "${decryptedFile}"
-    echo "decrypted to ${decryptedFile}"
-
+    printVar itemsCount foldersCount attachmentsCount
 }
 
 assertVaultEmpty() {
@@ -341,10 +406,12 @@ failVaultNotEmpty() {
 }
 
 logoutFromVault() {
-    if [[ ${1} == force ]]; then
+    local arg=${1}
+    if [[ ${arg} == force ]]; then
         bw logout > /dev/null 2>&1
-    elif [[ ${BW_SESSION} ]]; then
-        if [[ ${1} == verbose ]]; then
+        unset BW_SESSION
+    elif [[ ${BW_SESSION} && ! ${VALT_USE_PARENT_SESSION} ]]; then
+        if [[ ${arg} == verbose ]]; then
             echo
             echo "$(ansi bold_blue Logging out of vault)  "
             echo
@@ -353,8 +420,8 @@ logoutFromVault() {
         else
             bw logout > /dev/null 2>&1
         fi
+        unset BW_SESSION
     fi
-    unset BW_SESSION
 }
 
 cleanup() {
