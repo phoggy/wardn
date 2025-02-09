@@ -80,7 +80,10 @@ init() {
     readonly defaultServerUrl="https://vault.bitwarden.com"
     readonly backupFileSuffix="tar.gz.age"
     readonly restoreFolderPrefix="🔥"
+    readonly vaultFileName="vault.json"
+    readonly attachmentsDirName="attachments"
     declare -grx passwordVisibility="${VALT_BACKUP_PASSWORD_VISIBILITY:-none}"
+
     useRayvnPinEntry
 
     namePrefix="${VALT_BACKUP_PREFIX}"
@@ -204,7 +207,7 @@ useParentSession() {
     if [[ ${VALT_USE_PARENT_SESSION} && ${BW_SESSION} ]]; then
         if [[ $(sessionStatus) == unlocked ]]; then
             echo
-            echo "$(ansi bold Using parent session)"
+            echo "$(ansi bold_italic Using parent session)"
             return 0
         fi
     fi
@@ -318,7 +321,7 @@ restoreVault() {
     echo "$(ansi bold_blue Checking vault)"
     echo
     assertVaultEmpty
-
+    echo "Vault is empty."
     echo
     echo "$(ansi bold_blue Restoring vault)"
     echo
@@ -339,44 +342,76 @@ restoreVault() {
 
     # Get vault and grab some stats from it
 
-    local vault="$(cat "vault.json")"
+    local vault="$(cat "${vaultFileName}")"
     local itemsCount=$(echo "${vault}" | jq '.items // 0 | length')
     local foldersCount=$(echo "${vault}" | jq '.folders // 0 | length')
+    local attachmentsCount="$(find attachments -type f | wc -l | awk '{print $1}')"
+    local attachmentsCountMsg="$( (( ${attachmentsCount} > 0 )) && echo ${attachmentsCount} || echo "no")"
+
+    echo "Restoring ${foldersCount} folders, ${itemsCount} items with ${attachmentsCountMsg} attachments."
+
+    # Add a note or new field with ${restoreNoteName}!!
+
+    # TODO: implement!
 
     # Import vault
 
-    bw import bitwardenjson "vault.json" || fail
-    local newVault="$(bw export --format json --raw)" || fail
+    bw import bitwardenjson "${vaultFileName}" > /dev/null || fail
+    echo "Restored ${itemsCount} items and ${foldersCount} folders"
 
-    echo "${vault}" > ~/orig.json
-    echo "${newVault}" > ~/new.json
-    ls -l ~/orig.json
-    ls -l ~/new.json
-    bye
+    # Process attachments if we have any
 
-    # Map the old item ids to the new ones
+    if (( ${attachmentsCount} > 0 )); then
 
+        # Map the old item ids to the new ones
 
-    # Process attachments
+        declare -A idMap=()
+        local newVault="$(bw export --format json --raw)" || fail
+        mapIds vault newVault idMap items
 
-    local dir attachmentItemId attachmentsCount=0
-    cd "attachments" || fail
-    for dir in ./*; do
-        local attachmentItemId="$(basename ${dir})"
-        for file in "${attachmentItemId}"/*; do
-            (( attachmentsCount++ ))
-            echo "id: ${attachmentItemId}, file: ${file}"
+        # Create attachments using the new ids
 
-            # TODO: need to map from this orig attachementId to new one!!!
-            bw create attachment --file "${file}" --itemid "${attachmentItemId}" || fail
+        echo "Restoring ${attachmentsCount} attachments"
+
+        local attachmentDir attachmentItemId attachmentsCount=0
+        pushd "${attachmentsDirName}" > /dev/null || fail
+
+        for attachmentDir in ./*; do
+
+            pushd "${attachmentDir}" > /dev/null || fail
+            local attachmentItemId="$(basename ${attachmentDir})"
+            local mappedAttachmentItemId="${idMap[${attachmentItemId}]}"
+
+            for file in ./*; do
+                (( attachmentsCount++ ))
+                echo "Creating attachment for orig id ${attachmentItemId}, new id ${mappedAttachmentItemId}: ${file}" # TODO REMOVE
+                bw create attachment --file "./${file}" --itemid "${mappedAttachmentItemId}" > /dev/null || fail
+            done
+            popd > /dev/null || fail
         done
+    fi
+
+# TODO    stopSpinner
+
+    echo "$(ansi bold_green Restore completed.)"
+}
+
+mapIds() {
+    local -n old=${1}
+    local -n new=${2}
+    local -n map=${3}
+    local type=${4};
+    local oldIds=()
+    local newIds=()
+
+    mapfile -t oldIds < <(echo "${old}" | jq -r ".\"${type}\" | .[] | .id");
+    mapfile -t newIds < <(echo "${new}" | jq -r ".\"${type}\" | .[] | .id");
+
+    (( ${#oldIds[@]} == ${#oldIds[@]} )) || fail "old and new id arrays are different lengths!"
+
+    for i in "${!oldIds[@]}"; do
+        map["${oldIds[${i}]}"]="${newIds[${i}]}"
     done
-
-    # Add a note with ${restoreNoteName}!!
-
- # TODO   stopSpinner
-
-    printVar itemsCount foldersCount attachmentsCount
 }
 
 assertVaultEmpty() {
@@ -395,7 +430,7 @@ assertVaultEmpty() {
 failVaultNotEmpty() {
     warn "This vault must be empty before restoring to it."
     echo
-    echo "If you are $(ansi bold not sure) that you have a current backup, make another one!"
+    echo "If you are $(ansi bold not) $(ansi bold_italic sure) that you have a current backup, make another one!"
     echo "When ready, do the following to empty your vault:"
     echo
     echo "  1. In a browser, login at $(ansi blue ${vaultUrl})."
