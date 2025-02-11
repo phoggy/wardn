@@ -79,7 +79,7 @@ init() {
     readonly rageProjectUrl='https://github.com/str4d/rage'
     readonly defaultServerUrl="https://vault.bitwarden.com"
     readonly backupFileSuffix="tar.gz.age"
-    readonly restoreFolderPrefix="🔥"
+    readonly restoreNoteName="🔥 Restored Vault 🔥"
     readonly vaultFileName="vault.json"
     readonly attachmentsDirName="attachments"
     declare -grx passwordVisibility="${VALT_BACKUP_PASSWORD_VISIBILITY:-none}"
@@ -242,9 +242,9 @@ loginToVault() {
                 BW_SESSION="$(bw unlock --raw)" && break
             done
         fi
-        stopSpinner true
+        stopSpinner
     else
-        stopSpinner true
+        stopSpinner
         if [[ ${VALT_BACKUP_DEV_PWD} ]]; then
             BW_SESSION="$(bw login --raw --passwordenv VALT_BACKUP_DEV_PWD)"
         else
@@ -307,7 +307,7 @@ backupVault() {
     tar cz "${backupName}" | rage ${recipients} > ${backupFile} || failSpin
     local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
 
-    stopSpinner true
+    stopSpinner
     echo "$(ansi bold_green Vault backed up to) ${backupFile} $(ansi bold_green size): $(ansi bold ${size})"
 }
 
@@ -351,6 +351,8 @@ restoreVault() {
     echo "Restoring ${foldersCount} folders, ${itemsCount} items with ${attachmentsCountMsg} attachments."
 
     # Add a note or new field with ${restoreNoteName}!!
+
+    # TODO bw get template item | jq '.type = 2 | .name="🔥 Restored Vault 🔥" | .notes="LINE 1\nLINE 2"'
 
     # TODO: implement!
 
