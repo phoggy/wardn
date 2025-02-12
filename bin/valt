@@ -266,7 +266,8 @@ syncVault() {
     echo
     echo "$(ansi bold_blue Syncing vault)"
     echo
-    bw sync || fail
+    bw sync > /dev/null || fail
+    echo "Vault is current."
 }
 
 backupVault() {
@@ -324,9 +325,7 @@ restoreVault() {
     assertVaultEmpty
     echo "Vault is empty."
     echo
-    echo "$(ansi bold_blue Restoring vault)"
-    echo
-    echo "Restoring vault from $(ansi bold_green ${backupFileName})"
+    echo "$(ansi bold_blue Restoring vault) from $(ansi blue ${backupFileName})"
     echo
 
     # Extract contents of decrypted backup file to secureWorkDir
@@ -365,7 +364,7 @@ restoreVault() {
 
     if (( ${attachmentsCount} > 0 )); then
 
-        restartSpinner "${doneCheck}" "Processing attachments"
+        restartSpinner "${doneCheck}" "Processing ${attachmentsCount} attachments"
 
         # Map the old item ids to the new ones
 
@@ -374,8 +373,6 @@ restoreVault() {
         mapIds vault newVault idMap items
 
         # Create attachments using the new ids
-
-        echo "Restoring ${attachmentsCount} attachments"
 
         local attachmentDir attachmentItemId attachmentsCount=0
         pushd "${attachmentsDirName}" > /dev/null || fail
@@ -394,11 +391,12 @@ restoreVault() {
         done
     fi
 
-    stopSpinner
-    echo
-    echo "Restored ${foldersCount} folders, ${itemsCount} items with ${attachmentsCountMsg} attachments."
+    stopSpinner "${doneCheck}"
 
+    echo
     echo "$(ansi bold_green Restore completed.)"
+    echo
+    echo "A note named '${restoreNoteName}' was added to your vault with details of this operation."
 }
 
 mapIds() {
