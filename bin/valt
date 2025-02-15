@@ -82,10 +82,12 @@ init() {
     readonly vaultFileName="vault.json"
     readonly importVaultFileName="import-vault.json"
     readonly attachmentsDirName="attachments"
-    readonly bwDateFormat='%Y-%m-%dT%H:%M:%S.%3NZ'
+    readonly bwDateFormat='%Y-%m-%dT%H:%M:%S.000Z' # date cmd on Mac does not support ms
     readonly restoreNoteName="🔥 Restored Vault 🔥"
     readonly restoredNoteId="restored-note-xxxx-xxxx-xxxxxxxxxxxx"
+    readonly logFile="${HOME}/valt.log"
     declare -grx passwordVisibility="${VALT_BACKUP_PASSWORD_VISIBILITY:-none}"
+    echo '' > "${logFile}"
 
     useRayvnPinEntry
 
@@ -336,19 +338,19 @@ restoreVault() {    # TODO Can restore original creation/revision dates??
     #  1. unlock/unpack backup to temp dir
     #  2. load vault.json into ${oldVault}
     #  3. extract stats from ${oldVault}
-    #  4. create note item in target with stats
-    #  5. for each item in ${oldVault}, modify name with it's index number. Used to map item ids regardless of order in export step.
-    #  6. create an oldIds array by extraction from ${oldVault}
-    #  7. import ${oldVault} to target.
-    #  8. export target vault to ${newVault}
-    #  9. Use the index numbers from ${newVault} as an index to select a newId and combine it with oldIds into a map.
-    # 10. for each item in ${oldVault}, get id and:
+    #  4. for each item in ${oldVault}, modify name with it's index number. Used to map item ids regardless of order in export step.
+    #  5. create an oldIds array by extraction from ${oldVault}
+    #  6. import ${oldVault} to target.
+    #  7. export target vault to ${newVault}
+    #  8. Use the index numbers from ${newVault} as an index to select a newId and combine it with oldIds into a map.
+    #  9. for each item in ${oldVault}, get id and:
     #       a. set newId from idMap([$id])
     #       b. edit item ${newId} from target and update it with (SLOW but unavoidable for now to restore timestamps)
     #           c. name stripped of index prefix.
     #           d. creation date from old item
     #           d. revision date from old item
     #           d. deleted date from old item
+    # 10. create note item in target with stats
     # 11. restore attachments using idMap
 
     local backupFile="${restoreFile}"
@@ -381,50 +383,44 @@ restoreVault() {    # TODO Can restore original creation/revision dates??
     # Get vault and grab some stats from it (STEPS 2 & 3)
 
     local oldVault="$(cat "${vaultFileName}")"
-    local oldItemsCount=$(echo "${oldVault}" | jq '.items // 0 | length')
+    local itemsCount=$(echo "${oldVault}" | jq '.items // 0 | length')
     local foldersCount=$(echo "${oldVault}" | jq '.folders // 0 | length')
     local attachmentsCount="$(find attachments -type f | wc -l | awk '{print $1}')"
-    local attachmentsCountMsg="$( (( ${attachmentsCount} > 0 )) && echo ${attachmentsCount} || echo "no")"
 
-    # Add a note describing the backup (STEP 4)
+    # Update the names with sequence number prefixes so we can correctly map them later (STEP 4)
 
-    local note="HERE IS MY NOTE\nline 2\nline3"  # TODO
-    local now=$(date -u +${bwDateFormat})
+echo "${oldVault}" | jq > "${HOME}/before.json" # TODO REMOVE
+    prefixNamesWithIndex oldVault ${itemsCount}
 
-    # TODO clean up these next two lines. Combine?
-    local noteItem=$(bw get template item | jq --arg id "${restoredNoteId}" --arg now "${now}" '.type = 2 | .secureNote.type = 0 | .id = $id | .creationDate=$now | .revisionDate=$now')
-    local item=$(echo "${noteItem}" | jq -c --arg name "${restoreNoteName}" --arg note "${note}" '.favorite=true | .name=$name | .notes=$note')
-    oldVault=$(echo "${oldVault}" | jq -c --argjson item "${item}" '.items += [$item]')
+    # Extract old item ids (STEP 5)
 
-    # Update the names with sequence number prefixes so we can correctly map them later (STEP 5)
+    local oldIds
+    mapfile -t oldIds < <(echo "${oldVault}" | jq -r '.items[].id')
 
-    prefixNamesWithIndex oldVault ${oldItemsCount}
+    # Import updated vault (STEP 6)
 
-echo "${oldVault}" > "${HOME}/vault.json" || fail # TODO remove
-
-    # Extract old item ids (STEP 6)
-
-    local mapfile -t oldIds < <(echo "${oldVault}" | jq -r '.items[].id')
-
-    # Import updated vault (STEP 7)
-
+echo "${oldVault}" | jq > "${HOME}/after.json" || fail # TODO remove
     restartSpinner "${doneCheck}" "Performing import"
     echo "${oldVault}" > "${importVaultFileName}"
-    bw import bitwardenjson "${secureWorkDir}/${importVaultFileName}" > /dev/null || fail
+    bw import bitwardenjson "${secureWorkDir}/${importVaultFileName}" >> "${logFile}" 2>&1 || fail
 
-    # Export vault (STEP 8)
+    # Export vault (STEP 7)
 
     local newVault="$(bw export --format json --raw)" || fail
-    local newItemsCount=$(echo "${newVault}" | jq '.items // 0 | length') # should be previous +1, but being extra safe
 
-    # Build array of the new item ids (STEP 9)
+    # Build array of the new item ids (STEP 8)
 
     declare -A idMap=()
-    buildIdMap newVault oldIds idMap ${newItemsCount}
+    buildIdMap newVault oldIds idMap ${itemsCount}
 
-    # Edit each item in the new vault to fix name and copy old dates (STEP 10)
+    # Edit each item in the new vault to fix name and copy old dates (STEP 9)
 
-    restoreItems oldVault newVault oldIds idMap ${newItemsCount}
+    restartSpinner "${doneCheck}" "Restoring ${itemsCount} items (this may take some time)"
+    restoreItems oldVault newVault oldIds idMap "${itemsCount}"
+
+    # Add a note (STEP 10)
+
+    addNote "${backupFile}" ${itemsCount} ${foldersCount} ${attachmentsCount}
 
     # Process attachments if we have any (STEP 11)
 
@@ -442,7 +438,6 @@ echo "${oldVault}" > "${HOME}/vault.json" || fail # TODO remove
             pushd "${attachmentDir}" > /dev/null || fail
             local attachmentItemId="$(basename ${attachmentDir})"
             local mappedAttachmentItemId="${idMap[${attachmentItemId}]}"
-#echo "${attachmentItemId} -> ${mappedAttachmentItemId}" >> "${HOME}/map.txt" || fail
 
             for file in ./*; do
                 (( attachmentsCount++ ))
@@ -460,16 +455,31 @@ echo "${oldVault}" > "${HOME}/vault.json" || fail # TODO remove
     echo "A note named '${restoreNoteName}' was added to your vault with details of this operation."
 }
 
+addNote() {
+    local backupFile="${1}"
+    local itemsCount=${2}
+    local foldersCount=${3}
+    local attachmentsCount=${4}
+    local format='Restored on %s\n\nFolders: %d\nItems: %d\nAttachments: %d\nSource:%s\n'
+    local note="$(printf "${format}"  "$(date)" ${foldersCount} ${itemsCount} ${attachmentsCount} "${backupFile}" )"
+    local temp=$(bw get template item) || fail
+    local name="${restoreNoteName}"
+    local item=$(echo ${temp} | jq --arg nm "${name}" --arg nt "${note}" '.type=2 | .secureNote.type=0 | .name=$nm | .notes=$nt')
+    echo ${item} | bw encode | bw create item > /dev/null || fail
+}
+
 prefixNamesWithIndex() {
-    local -n vaultRef=${2}
-    local itemsCount=${1}
-    local name newName tempVault
+    local -n vaultRef=${1}
+    local itemsCount=${2}
+    local name newName
+    local tempVault="${vaultRef}" # TODO don't need this indirection
 
     for ((i = 0; i < itemsCount; i++)); do
         name=$(echo "${tempVault}" | jq -r --argjson i ${i} '.items[$i].name')
         newName="<${i}> ${name}"
         tempVault=$(echo "${tempVault}" | jq --argjson i ${i} --arg name "${newName}" '.items[$i].name=$name')
     done
+echo "${tempVault}" | jq > "${HOME}/index.json" # TODO REMOVE
     vaultRef="${tempVault}"
 }
 
@@ -491,6 +501,9 @@ buildIdMap() {
     done
 }
 
+log() {
+    echo "${@}" >> "${logFile}"
+}
 restoreItems() {
     local -n oldVaultRef=${1}
     local -n newVaultRef=${2}
@@ -498,13 +511,12 @@ restoreItems() {
     local -n idMapRef=${4}
     local itemsCount=${5}
     local i oldId newId newItem indexedName name newItem cDate rDate dDate
-
+log "Restoring ${itemsCount} items"; log
 
     for (( i = 0; i < itemsCount; i++ )); do
         oldId=${oldIdsRef[${i}]}
         newId=${idMapRef[${oldId}]}
         oldItem=$(echo ${oldVaultRef} | jq -r --arg id "${oldId}" '.items[] | select(.id == $id)')
-        # TODO REMOVE newItem=$(echo ${newVaultRef} | jq -r --arg id "${newId}" '.items[] | select(.id == $id)')
 
         newItem=$(bw get item "${newId}")
 
@@ -516,9 +528,10 @@ restoreItems() {
 
         newItem=$(echo "${newItem}" | jq -c --arg name "${name}" --arg c "${cDate}" --arg r "${rDate}" --arg d "${dDate}" \
             '.name=$name | .creationDate=$c | .revisionDate=$r | .deletedDate=$d' )
-# TODO remove newVaultRef=$(echo "${newVaultRef}" | jq -r --argjson newItem "${newItem}" --arg id "${newId}" '.items |= map(if .id == $id then $newItem else . end)')
 
-        echo "${newItem}" | bw encode | bw edit item "${newId}" > /dev/null
+log "ITEM [${i}] ${newItem}"; log
+        echo "${newItem}" | bw encode | bw edit item "${newId}" > /dev/null 2>> "${logFile}"
+log
     done
 }
 
