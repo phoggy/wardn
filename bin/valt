@@ -348,10 +348,13 @@ restoreVault() {    # TODO Can restore original creation/revision dates??
     #       b. edit item ${newId} from target and update it with (SLOW but unavoidable for now to restore timestamps)
     #           c. name stripped of index prefix.
     #           d. creation date from old item
-    #           d. revision date from old item
-    #           d. deleted date from old item
+    #           e. revision date from old item
+    #           f. deleted date from old item
     # 10. create note item in target with stats
     # 11. restore attachments using idMap
+    #
+    # At present, an edit with any of the original dates fails; a bug has been reported (https://github.com/bitwarden/clients/issues/13429)
+    # and the code is commented until a fix is implemented.
 
     local backupFile="${restoreFile}"
     local backupFileName="$(basename ${backupFile})"
@@ -415,7 +418,8 @@ echo "${oldVault}" | jq > "${HOME}/after.json" || fail # TODO remove
 
     # Edit each item in the new vault to fix name and copy old dates (STEP 9)
 
-    restartSpinner "${doneCheck}" "Restoring ${itemsCount} items (this may take some time)"
+    local suffix="$( (( itemsCount < 10 )) && echo '' || echo ' (this may take some time)')"
+    restartSpinner "${doneCheck}" "Restoring ${itemsCount} items${suffix}"
     restoreItems oldVault newVault oldIds idMap "${itemsCount}"
 
     # Add a note (STEP 10)
@@ -453,18 +457,26 @@ echo "${oldVault}" | jq > "${HOME}/after.json" || fail # TODO remove
     echo "$(ansi bold_green Restore completed.)"
     echo
     echo "A note named '${restoreNoteName}' was added to your vault with details of this operation."
+    echo
+    echo "You may need to logout/login or sync to see the restored items."
 }
 
 addNote() {
-    local backupFile="${1}"
-    local itemsCount=${2}
-    local foldersCount=${3}
-    local attachmentsCount=${4}
-    local format='Restored on %s\n\nFolders: %d\nItems: %d\nAttachments: %d\nSource:%s\n'
-    local note="$(printf "${format}"  "$(date)" ${foldersCount} ${itemsCount} ${attachmentsCount} "${backupFile}" )"
+    local source="${1}"
+    local items=${2}
+    local folders=${3}
+    local attachments=${4}
+    local i=$( [[ ${items} == 1 ]] && echo item || echo items)
+    local f=$( [[ ${folders} == 1 ]] && echo folder || echo folders)
+    local a=$( [[ ${items} == 1 ]] && echo attachment || echo attachments)
+    local format='Restored on %s\n\n%d %s, %d %s, %d %s from %s\n'
+    note="$(printf "${format}" "$(date)" ${items} ${i} ${folders} ${f} ${attachments} ${a} "${source}")"
+
+    echo "${note}" >> "${logFile}"
+
     local temp=$(bw get template item) || fail
     local name="${restoreNoteName}"
-    local item=$(echo ${temp} | jq --arg nm "${name}" --arg nt "${note}" '.type=2 | .secureNote.type=0 | .name=$nm | .notes=$nt')
+    local item=$(echo ${temp} | jq -r --arg nm "${name}" --arg nt "${note}" '.type=2 | .secureNote.type=0 | .name=$nm | .notes=$nt')
     echo ${item} | bw encode | bw create item > /dev/null || fail
 }
 
@@ -511,7 +523,6 @@ restoreItems() {
     local -n idMapRef=${4}
     local itemsCount=${5}
     local i oldId newId newItem indexedName name newItem cDate rDate dDate
-log "Restoring ${itemsCount} items"; log
 
     for (( i = 0; i < itemsCount; i++ )); do
         oldId=${oldIdsRef[${i}]}
@@ -522,16 +533,18 @@ log "Restoring ${itemsCount} items"; log
 
         indexedName=$(echo ${newItem} | jq -r '.name')
         name="${indexedName#\<[0-9]*\> }"
-        cDate=$(echo ${oldItem} | jq -r '.creationDate')
-        rDate=$(echo ${oldItem} | jq -r '.revisionDate')
-        dDate=$(echo ${oldItem} | jq -r '.deletedDate')
 
-        newItem=$(echo "${newItem}" | jq -c --arg name "${name}" --arg c "${cDate}" --arg r "${rDate}" --arg d "${dDate}" \
-            '.name=$name | .creationDate=$c | .revisionDate=$r | .deletedDate=$d' )
+# See https://github.com/bitwarden/clients/issues/13429
+#
+#        cDate=$(echo ${oldItem} | jq -r '.creationDate')
+#        rDate=$(echo ${oldItem} | jq -r '.revisionDate')
+#        dDate=$(echo ${oldItem} | jq -r '.deletedDate')
+#
+#        newItem=$(echo "${newItem}" | jq -c --arg name "${name}" --arg c "${cDate}" --arg r "${rDate}" --arg d "${dDate}" \
+#            '.name=$name | .creationDate=$c | .revisionDate=$r | .deletedDate=$d' )
 
-log "ITEM [${i}] ${newItem}"; log
+        newItem=$(echo "${newItem}" | jq -c --arg name "${name}" '.name=$name' )
         echo "${newItem}" | bw encode | bw edit item "${newId}" > /dev/null 2>> "${logFile}"
-log
     done
 }
 
@@ -551,11 +564,13 @@ assertVaultEmpty() {
 failVaultNotEmpty() {
     warn "This vault must be empty before restoring to it."
     echo
-    echo "If you are $(ansi bold not) $(ansi bold_italic sure) that you have a current backup, make another one!"
-    echo "When ready, do the following to empty your vault:"
+    echo "If you are not $(ansi bold_italic sure) that you have a current backup, make another one or restore"
+    echo "to a new account (with a Premium subscription if you have attachments)."
+    echo
+    echo "If you choose to empty the target vault:"
     echo
     echo "  1. In a browser, login at $(ansi blue ${vaultUrl})."
-    echo "  2. Under $(ansi bold Settings) (in the left pane), click $(ansi bold My Account)."
+    echo "  2. In the left pane, under $(ansi bold Settings), click $(ansi bold My Account)."
     echo "  3. In the $(ansi bold_red Danger zone) section, click $(ansi bold_red Purge vault)."
     echo "  4. In the popup, enter you master password and click $(ansi bold_red Purge vault)."
     fail
@@ -655,7 +670,5 @@ testIdMapping() {  # TODO REMOVE
     echo "${newVault}" | jq
 
 }
-
-#testIdMapping; bye
 
 main "${@}"
