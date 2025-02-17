@@ -57,6 +57,7 @@ usage() {
 }
 
 main() {
+    [[ ${VALT_DEBUG} ]] && setDebug
     assertExecutables requiredExecutables
     init "${@}"
     if ! useParentSession; then
@@ -82,12 +83,8 @@ init() {
     readonly vaultFileName="vault.json"
     readonly importVaultFileName="import-vault.json"
     readonly attachmentsDirName="attachments"
-    readonly bwDateFormat='%Y-%m-%dT%H:%M:%S.000Z' # date cmd on Mac does not support ms
     readonly restoreNoteName="🔥 Restored Vault 🔥"
-    readonly restoredNoteId="restored-note-xxxx-xxxx-xxxxxxxxxxxx"
-    readonly logFile="${HOME}/valt.log"
     declare -grx passwordVisibility="${VALT_BACKUP_PASSWORD_VISIBILITY:-none}"
-    echo '' > "${logFile}"
 
     useRayvnPinEntry
 
@@ -176,6 +173,49 @@ initSecureTempDir() {
     [[ -d ${secureTempDir} ]] || fail "Secure temp directory ${secureTempDir} not found!"
     cd "${secureTempDir}" || fail
     [[ ${verifySecure} ]] && verifySecureTempDir
+}
+
+setDebug() {
+    echo -n 'debug on'
+    declare -grx _debug=true
+    declare -grx _debugDir="${HOME}/.valt"
+    declare -grx _debugFile="${_debugDir}/log"
+    [[ -e ${_debugDir} ]] && (rm -rf "${_debugDir}" || fail)
+    mkdir "${_debugDir}" || fail
+    exec 3> "${_debugFile}"
+    printf "valt log $(date) -----------------------------\n\n" >&3
+    echo ", log at ${_debugFile}"
+}
+
+debug() {
+    [[ ${_debug} ]] && echo "${@}" >&3
+}
+
+debugVar() {
+    if [[ ${_debug} ]]; then
+        for varName in "$@"; do
+            declare -p ${varName} >&3
+        done
+    fi
+}
+
+debugFile() {
+    if [[ ${_debug} ]]; then
+        local sourceFile="${1}"
+        local fileName="${2:-$(baseName ${sourceFile})}"
+        local destFile="${_debugDir}/${fileName}"
+        cp "${sourceFile}" "${destFile}"
+    fi
+}
+
+debugJson() {
+    if [[ ${_debug} ]]; then
+        local -n json="${1}"
+        local fileName="${2}"
+        local destFile="${_debugDir}/${fileName}.json"
+        debug "created ${destFile}"
+        echo "${json}" | jq > "${destFile}"
+    fi
 }
 
 verifySecureTempDir() {
@@ -317,7 +357,7 @@ backupVault() {
     echo "$(ansi bold_green Vault backed up to) ${backupFile} $(ansi bold_green size): $(ansi bold ${size})"
 }
 
-restoreVault() {    # TODO Can restore original creation/revision dates??
+restoreVault() {
 
     # There are two issues with restoring a vault that make this implementation far more complicated
     # than expected/desirable:
@@ -358,13 +398,12 @@ restoreVault() {    # TODO Can restore original creation/revision dates??
 
     local backupFile="${restoreFile}"
     local backupFileName="$(basename ${backupFile})"
-    local backupDate="$(basename ${backupFileName#*backup-*-} .${backupFileSuffix})"
     local doneCheck=". ${_greenCheckMark}"
 
     echo
     echo "$(ansi bold_blue Checking vault)"
     echo
-    assertVaultEmpty  # (STEP 0)
+    assertVaultReady  # (STEP 0)
 
     echo "Vault is empty."
     echo
@@ -392,8 +431,9 @@ restoreVault() {    # TODO Can restore original creation/revision dates??
 
     # Update the names with sequence number prefixes so we can correctly map them later (STEP 4)
 
-echo "${oldVault}" | jq > "${HOME}/before.json" # TODO REMOVE
+    debugJson oldVault 'before'
     prefixNamesWithIndex oldVault ${itemsCount}
+    debugJson oldVault 'after'
 
     # Extract old item ids (STEP 5)
 
@@ -402,10 +442,9 @@ echo "${oldVault}" | jq > "${HOME}/before.json" # TODO REMOVE
 
     # Import updated vault (STEP 6)
 
-echo "${oldVault}" | jq > "${HOME}/after.json" || fail # TODO remove
     restartSpinner "${doneCheck}" "Performing import"
     echo "${oldVault}" > "${importVaultFileName}"
-    bw import bitwardenjson "${secureWorkDir}/${importVaultFileName}" >> "${logFile}" 2>&1 || fail
+    bw import bitwardenjson "${secureWorkDir}/${importVaultFileName}" || fail
 
     # Export vault (STEP 7)
 
@@ -491,7 +530,6 @@ prefixNamesWithIndex() {
         newName="<${i}> ${name}"
         tempVault=$(echo "${tempVault}" | jq --argjson i ${i} --arg name "${newName}" '.items[$i].name=$name')
     done
-echo "${tempVault}" | jq > "${HOME}/index.json" # TODO REMOVE
     vaultRef="${tempVault}"
 }
 
@@ -534,7 +572,7 @@ restoreItems() {
         indexedName=$(echo ${newItem} | jq -r '.name')
         name="${indexedName#\<[0-9]*\> }"
 
-# See https://github.com/bitwarden/clients/issues/13429
+# TODO See https://github.com/bitwarden/clients/issues/13429
 #
 #        cDate=$(echo ${oldItem} | jq -r '.creationDate')
 #        rDate=$(echo ${oldItem} | jq -r '.revisionDate')
@@ -548,7 +586,7 @@ restoreItems() {
     done
 }
 
-assertVaultEmpty() {
+assertVaultReady() {
     local vault="$(bw export --raw --format json)"
 
     local orgVault="$(echo "${vault}" | jq '.collections != null' | grep true)"
@@ -600,6 +638,7 @@ cleanup() {
     if [[ ${generatedTempDir} ]]; then
         rm -rf "${generatedTempDir}" > /dev/null 2>&1 || warn "Failed to delete temp dir: ${generatedTempDir}"
     fi
+    [[ ${debug} ]] && exec 3<&-
 }
 
 # Load core library
@@ -628,47 +667,5 @@ declare -A requiredExecutables=(
     [jq_install]='https://jqlang.github.io/jq/download/'
     [jq_version]='versionExtractDash'
 )
-
-testIdMapping() {  # TODO REMOVE
-    local oldIds=()
-    local oldVault="$(cat ${HOME}/vault.json)"
-    local newVault="$(cat ${HOME}/new-vault.json)"
-    local newItemsCount=$(echo "${newVault}" | jq '.items // 0 | length')
-    declare -A idMap=()
-    mapfile -t oldIds < <(echo "${oldVault}" | jq -r '.items[].id')
-
-    buildIdMap newVault oldIds idMap ${newItemsCount}
-
-    itemOne="21b1fc8a-6d77-4a8d-a148-b283003c81a7"
-    itemTwo="ef05e600-c1c6-4b2c-8769-b283003c9dea"
-    note="restored-note-xxxx-xxxx-xxxxxxxxxxxx"
-
-    itemOneNew="37786c11-8a4f-4d3d-98b5-b2830156503f"
-    itemTwoNew="6ed2e2e8-043a-4ff9-9d22-b2830156503f"
-    noteNew="92f9e3a9-f038-4e71-a747-b2830156503f"
-
-    itemOneMap=${idMap[${itemOne}]}
-    itemTwoMap=${idMap[${itemTwo}]}
-    noteMap=${idMap[${note}]}
-
-    ok="${_greenCheckMark}"
-    expected="$(ansi bold_red EXPECTED:)"
-
-    itemOneMapResult="$([[ ${itemOneMap} == "${itemOneNew}" ]] && echo "${ok}" || echo "${expected} ${itemOneNew}")"
-    itemTwoMapResult="$([[ ${itemTwoMap} == "${itemTwoNew}" ]] && echo "${ok}" || echo "${expected} ${itemTwoNew}")"
-    noteMapResult="$([[ ${noteMap} == "${noteNew}" ]] && echo "${ok}" || echo "${expected} ${noteNew}")"
-
-    echo
-    echo "Item One: ${itemOne} -> ${itemOneMap} ${itemOneMapResult}"
-    echo "Item Two: ${itemTwo} -> ${itemTwoMap} ${itemTwoMapResult}"
-    echo "    Note: ${note} -> ${noteMap} ${noteMapResult}"
-
-    restoreItems oldVault newVault oldIds idMap ${newItemsCount}
-
-    echo; echo '---- NEW VAULT ------------'; echo
-
-    echo "${newVault}" | jq
-
-}
 
 main "${@}"
