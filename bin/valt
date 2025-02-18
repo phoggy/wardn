@@ -83,7 +83,7 @@ init() {
     readonly vaultFileName="vault.json"
     readonly importVaultFileName="import-vault.json"
     readonly attachmentsDirName="attachments"
-    readonly restoreNoteName="🔥 Restored Vault 🔥"
+    readonly restoreNoteName="🔥 Restored Vault"
     declare -grx passwordVisibility="${VALT_BACKUP_PASSWORD_VISIBILITY:-none}"
 
     useRayvnPinEntry
@@ -176,15 +176,15 @@ initSecureTempDir() {
 }
 
 setDebug() {
-    echo -n 'debug on'
     declare -grx _debug=true
     declare -grx _debugDir="${HOME}/.valt"
     declare -grx _debugFile="${_debugDir}/log"
     [[ -e ${_debugDir} ]] && (rm -rf "${_debugDir}" || fail)
     mkdir "${_debugDir}" || fail
     exec 3> "${_debugFile}"
-    printf "valt log $(date) -----------------------------\n\n" >&3
-    echo ", log at ${_debugFile}"
+    printf "___ valt log $(date) _________________________________\n\n" >&3
+    echo
+    echo "($(ansi bold_italic debug on, log at) $(ansi blue ${_debugFile}))"
 }
 
 debug() {
@@ -214,7 +214,7 @@ debugJson() {
         local fileName="${2}"
         local destFile="${_debugDir}/${fileName}.json"
         debug "created ${destFile}"
-        echo "${json}" | jq > "${destFile}"
+        echo "${json}" > "${destFile}"
     fi
 }
 
@@ -378,27 +378,31 @@ restoreVault() {
     #  1. unlock/unpack backup to temp dir
     #  2. load vault.json into ${oldVault}
     #  3. extract stats from ${oldVault}
-    #  4. for each item in ${oldVault}, modify name with it's index number. Used to map item ids regardless of order in export step.
+    #  4. for each item in ${oldVault}, modify name with its index number. Used to map item ids independent of export order.
     #  5. create an oldIds array by extraction from ${oldVault}
     #  6. import ${oldVault} to target.
     #  7. export target vault to ${newVault}
-    #  8. Use the index numbers from ${newVault} as an index to select a newId and combine it with oldIds into a map.
-    #  9. for each item in ${oldVault}, get id and:
-    #       a. set newId from idMap([$id])
-    #       b. edit item ${newId} from target and update it with (SLOW but unavoidable for now to restore timestamps)
-    #           c. name stripped of index prefix.
-    #           d. creation date from old item
-    #           e. revision date from old item
-    #           f. deleted date from old item
-    # 10. create note item in target with stats
-    # 11. restore attachments using idMap
+    #  8. for each item in ${oldVault}, set oldId from oldIds(${i}) and:
+    #       a. set oldId from ${oldIds} using loop index
+    #       a. extract newItem from ${newVault} using loop index
+    #       b. extract newId from ${newItem}
+    #       c. update ${idMap} with ${oldId} -> ${newId} for attachment processing
+    #       b. edit item ${newId} and update it with:
+    #           1. name stripped of index prefix
+    #           2. creation date from old item
+    #           3. revision date from old item
+    #           4. deleted date from old item
+    #  9. create note item in target with stats
+    # 10. restore attachments using ${idMap}
     #
-    # At present, an edit with any of the original dates fails; a bug has been reported (https://github.com/bitwarden/clients/issues/13429)
-    # and the code is commented until a fix is implemented.
+    # NOTE: At present, an edit with any of the original dates fails; an issue has been created
+    # (https://github.com/bitwarden/clients/issues/13429) and the code is commented until a fix is implemented.
 
     local backupFile="${restoreFile}"
     local backupFileName="$(basename ${backupFile})"
     local doneCheck=". ${_greenCheckMark}"
+    local oldIds=()
+    declare -A idMap=()
 
     echo
     echo "$(ansi bold_blue Checking vault)"
@@ -416,7 +420,6 @@ restoreVault() {
     local tarFile="backup.tar"
     rage -d ${identities} "${backupFile}" -o "${tarFile}" 2> >(redStream) || fail
     echo
-
     startSpinner "Preparing import" # don't start until here, since the above will likely prompt for a password
 
     tar -xf "${tarFile}" --strip-components=1 || fail
@@ -437,57 +440,33 @@ restoreVault() {
 
     # Extract old item ids (STEP 5)
 
-    local oldIds
     mapfile -t oldIds < <(echo "${oldVault}" | jq -r '.items[].id')
 
     # Import updated vault (STEP 6)
 
-    restartSpinner "${doneCheck}" "Performing import"
+    restartSpinner "${doneCheck}" "Importing vault"
     echo "${oldVault}" > "${importVaultFileName}"
-    bw import bitwardenjson "${secureWorkDir}/${importVaultFileName}" || fail
+    bw import bitwardenjson "./${importVaultFileName}" > /dev/null || fail
 
     # Export vault (STEP 7)
 
     local newVault="$(bw export --format json --raw)" || fail
 
-    # Build array of the new item ids (STEP 8)
-
-    declare -A idMap=()
-    buildIdMap newVault oldIds idMap ${itemsCount}
-
-    # Edit each item in the new vault to fix name and copy old dates (STEP 9)
+    # Edit each item in the new vault to fix name and copy old dates, building idMap (STEP 8)
 
     local suffix="$( (( itemsCount < 10 )) && echo '' || echo ' (this may take some time)')"
     restartSpinner "${doneCheck}" "Restoring ${itemsCount} items${suffix}"
-    restoreItems oldVault newVault oldIds idMap "${itemsCount}"
+    restoreItems oldVault newVault oldIds idMap ${itemsCount}
 
-    # Add a note (STEP 10)
+    # Add a note (STEP 9)
 
     addNote "${backupFile}" ${itemsCount} ${foldersCount} ${attachmentsCount}
 
-    # Process attachments if we have any (STEP 11)
+    # Process attachments if we have any (STEP 10)
 
     if (( ${attachmentsCount} > 0 )); then
-
         restartSpinner "${doneCheck}" "Uploading ${attachmentsCount} attachments"
-
-        # Create attachments using the new ids
-
-        local attachmentDir attachmentItemId attachmentsCount=0
-        pushd "${attachmentsDirName}" > /dev/null || fail
-
-        for attachmentDir in ./*; do
-
-            pushd "${attachmentDir}" > /dev/null || fail
-            local attachmentItemId="$(basename ${attachmentDir})"
-            local mappedAttachmentItemId="${idMap[${attachmentItemId}]}"
-
-            for file in ./*; do
-                (( attachmentsCount++ ))
-                bw create attachment --file "./${file}" --itemid "${mappedAttachmentItemId}" > /dev/null || fail
-            done
-            popd > /dev/null || fail
-        done
+        uploadAttachments idMap
     fi
 
     stopSpinner "${doneCheck}"
@@ -497,29 +476,11 @@ restoreVault() {
     echo
     echo "A note named '${restoreNoteName}' was added to your vault with details of this operation."
     echo
-    echo "You may need to logout/login or sync to see the restored items."
+    suffix="$( (( attachmentsCount > 0 )) && echo ' and attachments.' || echo '.')"
+    echo "You will likely need to logout/login to see all restored items${suffix}"
 }
 
-addNote() {
-    local source="${1}"
-    local items=${2}
-    local folders=${3}
-    local attachments=${4}
-    local i=$( [[ ${items} == 1 ]] && echo item || echo items)
-    local f=$( [[ ${folders} == 1 ]] && echo folder || echo folders)
-    local a=$( [[ ${items} == 1 ]] && echo attachment || echo attachments)
-    local format='Restored on %s\n\n%d %s, %d %s, %d %s from %s\n'
-    note="$(printf "${format}" "$(date)" ${items} ${i} ${folders} ${f} ${attachments} ${a} "${source}")"
-
-    echo "${note}" >> "${logFile}"
-
-    local temp=$(bw get template item) || fail
-    local name="${restoreNoteName}"
-    local item=$(echo ${temp} | jq -r --arg nm "${name}" --arg nt "${note}" '.type=2 | .secureNote.type=0 | .name=$nm | .notes=$nt')
-    echo ${item} | bw encode | bw create item > /dev/null || fail
-}
-
-prefixNamesWithIndex() {
+prefixNamesWithIndex() {   # STEP 4
     local -n vaultRef=${1}
     local itemsCount=${2}
     local name newName
@@ -533,44 +494,39 @@ prefixNamesWithIndex() {
     vaultRef="${tempVault}"
 }
 
-buildIdMap() {
+restoreItems() { # STEP 8
 
-    #  9. Use the index numbers from ${newVault} as an index to select a newId and combine it with oldIds into a map.
-
-    local -n newVaultRef=${1}
-    local -n oldIdsRef=${2}
-    local -n idMapRef=${3}
-    local itemsCount=${4}
-    local oldId newId
-
-    for (( i = 0; i < itemsCount; i++ )); do
-        oldId=${oldIdsRef[${i}]}
-        newItem=$(echo "${newVaultRef}" | jq -r --arg index ${i} '.items[] | select(.name | startswith("<" + ($index|tostring) + ">"))')
-        newId=$(echo "${newItem}" | jq -r '.id')
-        idMapRef["${oldId}"]="${newId}"
-    done
-}
-
-log() {
-    echo "${@}" >> "${logFile}"
-}
-restoreItems() {
     local -n oldVaultRef=${1}
     local -n newVaultRef=${2}
     local -n oldIdsRef=${3}
     local -n idMapRef=${4}
     local itemsCount=${5}
-    local i oldId newId newItem indexedName name newItem cDate rDate dDate
+    local i oldId newId newItem indexedName name newItem restoredItem editedItem # cDate rDate dDate
 
     for (( i = 0; i < itemsCount; i++ )); do
+
+        # Get the oldId and oldItem
+
         oldId=${oldIdsRef[${i}]}
-        newId=${idMapRef[${oldId}]}
         oldItem=$(echo ${oldVaultRef} | jq -r --arg id "${oldId}" '.items[] | select(.id == $id)')
 
-        newItem=$(bw get item "${newId}")
+        # Lookup the newItem by index and extract newId
+
+        newItem=$(echo "${newVaultRef}" | jq -r --arg index ${i} '.items[] | select(.name | startswith("<" + ($index|tostring) + ">"))')
+        newId=$(echo "${newItem}" | jq -r '.id')
+
+        # Update the idMap for attachment processing
+
+        idMapRef["${oldId}"]="${newId}"
+
+        # Get the item name without the index prefix
 
         indexedName=$(echo ${newItem} | jq -r '.name')
         name="${indexedName#\<[0-9]*\> }"
+
+        debug ''; debugVar i oldId newId indexedName name
+
+        # Update newItem
 
 # TODO See https://github.com/bitwarden/clients/issues/13429
 #
@@ -578,11 +534,58 @@ restoreItems() {
 #        rDate=$(echo ${oldItem} | jq -r '.revisionDate')
 #        dDate=$(echo ${oldItem} | jq -r '.deletedDate')
 #
-#        newItem=$(echo "${newItem}" | jq -c --arg name "${name}" --arg c "${cDate}" --arg r "${rDate}" --arg d "${dDate}" \
-#            '.name=$name | .creationDate=$c | .revisionDate=$r | .deletedDate=$d' )
+#        restoredItem=$(echo "${newItem}" | jq -c --arg name "${name}" --arg id "${newId}" --arg c "${cDate}" --arg r "${rDate}" --arg d "${dDate}" \
+#            '.name=$name | .id=$id | .creationDate=$c | .revisionDate=$r | .deletedDate=$d' )
 
-        newItem=$(echo "${newItem}" | jq -c --arg name "${name}" '.name=$name' )
-        echo "${newItem}" | bw encode | bw edit item "${newId}" > /dev/null 2>> "${logFile}"
+        restoredItem=$(echo "${newItem}" | jq -c --arg name "${name}"  --arg id "${newId}" '.name=$name | .id=$id')
+        debugJson restoredItem "restoredItem-${i}"
+
+        # Finally, edit the item in the vault to restore it
+
+        editedItem=$(echo "${restoredItem}" | bw encode | bw edit item "${newId}")
+        debugJson editedItem "editedItem-${i}"
+
+    done
+}
+
+addNote() {  # STEP 9
+    local source="${1}"
+    local items=${2}
+    local folders=${3}
+    local attachments=${4}
+    local i=$( [[ ${items} == 1 ]] && echo item || echo items)
+    local f=$( [[ ${folders} == 1 ]] && echo folder || echo folders)
+    local a=$( [[ ${items} == 1 ]] && echo attachment || echo attachments)
+    local format='Restored on %s\n\n%d %s, %d %s, %d %s from %s\n'
+    note="$(printf "${format}" "$(date)" ${items} ${i} ${folders} ${f} ${attachments} ${a} "${source}")"
+
+    # TODO Add hostname, username, uname, IP, reverse dns... https://iplocation.io/ ip.info ???
+
+    debugJson note
+
+    local temp=$(bw get template item) || fail
+    local name="${restoreNoteName}"
+    local item=$(echo ${temp} | jq -r --arg nm "${name}" --arg nt "${note}" '.type=2 | .secureNote.type=0 | .name=$nm | .notes=$nt')
+    echo ${item} | bw encode | bw create item > /dev/null || fail
+}
+
+uploadAttachments() { # STEP 10
+    local -n idMapRef=${1}
+    local attachmentDir attachmentFile
+    pushd "${attachmentsDirName}" > /dev/null || fail
+
+    for attachmentDir in ./*; do
+
+        pushd "${attachmentDir}" > /dev/null || fail
+        local oldAttachmentItemId="$(basename ${attachmentDir})"
+        local newAttachmentItemId="${idMapRef[${oldAttachmentItemId}]}"
+        debugVar oldAttachmentItemId newAttachmentItemId
+
+        for attachmentFile in ./*; do
+            debugVar attachmentFile
+            bw create attachment --file "./${attachmentFile}" --itemid "${newAttachmentItemId}" > /dev/null || fail
+        done
+        popd > /dev/null || fail
     done
 }
 
@@ -643,7 +646,7 @@ cleanup() {
 
 # Load core library
 
-source "${HOME}/.rayvn/boot.sh" 2>/dev/null || { echo 'rayvn not installed' && exit 0; }
+source "${HOME}/.rayvn/boot.sh" 2> /dev/null || { echo 'rayvn not installed' && exit 0; }
 require 'core/base'
 require 'core/spinner'
 
