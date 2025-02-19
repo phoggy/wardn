@@ -18,8 +18,6 @@ usage() {
     echo "enabled by setting the BW_CLIENTID and BW_CLIENTSECRET environment variables, for details see"
     echo "$(ansi blue https://bitwarden.com/help/personal-api-key/)."
     echo
-    echo "The Bitwarden CLI is used, and  and an API key and secret is required, both of which must be "
-    echo
     echo "Backup files are encrypted with $(ansi cyan Age) public keys — see $(ansi blue ${rageProjectUrl}) for details on features"
     echo "and key creation. In the $(ansi cyan Age) system, a public key is called a 'recipient' and a private key is called an"
     echo "'identity'. Identities/private keys $(ansi bold_italic SHOULD) be protected by a strong password for this use case, and a copy"
@@ -41,6 +39,7 @@ usage() {
     echo "    -p, --prefix PREFIX            Set a prefix for the backup file name."
     echo "    -u, --url URL                  Set the URL for the Bitwarden server. Defaults to ${defaultServerUrl}"
     echo "    -i, --identity IDENTITY        Restore using the identity (private key) file at IDENTITY. May be repeated."
+    echo "    -l, --login                    Force full login even if API key environment variables are set."
     echo "    -h, --help                     Display usage and exit."
     echo "    --version                      Display version and exit."
     echo
@@ -112,6 +111,7 @@ init() {
         -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
         -p | --prefix) shift; namePrefix="${1}" ;;
         -u | --url) shift; vaultUrl="${1}" ;;
+        -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION VALT_BACKUP_DEV_PWD ;;
         -h | --help) usage ;;
         -v | --version) version "${VALT_BACKUP_VERSION}" ;;
         *) fail "Unknown argument: ${1}" ;;
