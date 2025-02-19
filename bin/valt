@@ -59,17 +59,12 @@ main() {
     [[ ${VALT_DEBUG} ]] && setDebug
     assertExecutables requiredExecutables
     init "${@}"
-    if ! useParentSession; then
-        ensureLatestCLI
-        loginToVault
-    fi
-    syncVault
+    prepareVault
     if [[ ${restoreFile} ]]; then
         restoreVault
     else
         backupVault
     fi
-    logoutFromVault verbose
 }
 
 init() {
@@ -83,6 +78,7 @@ init() {
     readonly importVaultFileName="import-vault.json"
     readonly attachmentsDirName="attachments"
     readonly restoreNoteName="🔥 Restored Vault"
+    readonly doneCheck=". ${_greenCheckMark}"
     declare -grx passwordVisibility="${VALT_BACKUP_PASSWORD_VISIBILITY:-none}"
 
     useRayvnPinEntry
@@ -183,8 +179,10 @@ setDebug() {
     mkdir "${_debugDir}" || fail
     exec 3> "${_debugFile}"
     printf "___ valt log $(date) _________________________________\n\n" >&3
-    echo
-    echo "($(ansi bold_italic debug on, log at) $(ansi blue ${_debugFile}))"
+}
+
+debugStatus() {
+    [[ ${_debug} ]] && echo "Debug enabled, log at $(ansi blue ${_debugFile})."
 }
 
 debug() {
@@ -234,29 +232,43 @@ verifySecureTempDir() {
     fi
 }
 
-ensureLatestCLI() {
+prepareVault() {
     echo
-    echo "$(ansi bold_blue Checking Bitwarden CLI version)"
-    echo
-    local update="$(bw update 2>&1)"
-    if [[ ${update} =~ "new version" ]]; then
-        printRed "The Bitwarden CLI at $(which bw) is out of date."
-        echo
-        echo "${update}"
-        fail
+    if [[ ${restoreFile} ]]; then
+        echo "$(ansi bold Restore Backup)"
+    else
+        echo "$(ansi bold Create Backup)"
     fi
-    echo "$(ansi bold_green "$(which bw)") is the latest version ($(bw --version))"
+    echo
+    debugStatus
+    if ! useParentSession; then
+        ensureLatestCLI
+        loginToVault
+    fi
+    syncVault
 }
 
 useParentSession() {
     if [[ ${VALT_USE_PARENT_SESSION} && ${BW_SESSION} ]]; then
         if [[ $(sessionStatus) == unlocked ]]; then
-            echo
-            echo "$(ansi bold_italic Using parent session)"
+            echo "Skipping login, parent session appears valid${doneCheck}"
             return 0
         fi
     fi
     return 1
+}
+
+ensureLatestCLI() {
+    startSpinner "Checking Bitwarden CLI version"
+    local update="$(bw update 2>&1)"
+    bwPath=$(which bw)
+    if [[ ${update} =~ "new version" ]]; then
+        stopSpinner ": $(ansi bold_red ${bwPath} is out of date.)"
+        echo
+        echo "${update}"
+        fail
+    fi
+    stopSpinner ": $(ansi blue "${bwPath}") is up to date at $(bw --version)${doneCheck}"
 }
 
 sessionStatus() {
@@ -264,10 +276,7 @@ sessionStatus() {
 }
 
 loginToVault() {
-    echo
-    echo "$(ansi bold_blue Logging in to vault)"
-    echo
-    startSpinner
+    startSpinner "Logging in to vault"
 
     logoutFromVault force # just in case there is an active session
     declare -gx BW_SESSION
@@ -281,18 +290,20 @@ loginToVault() {
         bw login --apikey > /dev/null || fail "login failed"
         if [[ ${VALT_BACKUP_DEV_PWD} ]]; then
             BW_SESSION="$(bw unlock --raw --passwordenv VALT_BACKUP_DEV_PWD)"
+            stopSpinner "${doneCheck}"
         else
+            stopSpinner ". Credentials required..."
             for retryIndex in {1..3}; do
                 echo
                 BW_SESSION="$(bw unlock --raw)" && break
             done
         fi
-        stopSpinner
     else
-        stopSpinner
         if [[ ${VALT_BACKUP_DEV_PWD} ]]; then
             BW_SESSION="$(bw login --raw --passwordenv VALT_BACKUP_DEV_PWD)"
+            stopSpinner "${doneCheck}"
         else
+            stopSpinner ". Credentials required..."
             for retryIndex in {1..3}; do
                 echo
                 BW_SESSION="$(bw login --raw)" && break
@@ -302,16 +313,12 @@ loginToVault() {
     fi
 
     [[ ${BW_SESSION} ]] || fail "login failed"
-
-    echo "$(ansi bold_green Logged in.)"
 }
 
 syncVault() {
-    echo
-    echo "$(ansi bold_blue Syncing vault)"
-    echo
+    startSpinner "Syncing vault"
     bw sync > /dev/null || fail
-    echo "Vault is current."
+    stopSpinner "${doneCheck}"
 }
 
 backupVault() {
@@ -319,10 +326,7 @@ backupVault() {
     local attachmentItemIds attachmentItemId
     local attachments attachment
     local attachDir
-    echo
-    echo "$(ansi bold_blue Backing up vault)  "
-    echo
-    startSpinner
+    startSpinner "Backing up vault"
 
     bw export --raw --format json > "${vaultFile}" || failSpin
 
@@ -353,7 +357,9 @@ backupVault() {
     tar cz "${backupName}" | rage ${recipients} > ${backupFile} || failSpin
     local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
 
-    stopSpinner
+    stopSpinner "${doneCheck}"
+    logoutFromVault
+    echo
     echo "$(ansi bold_green Vault backed up to) ${backupFile} $(ansi bold_green size): $(ansi bold ${size})"
 }
 
@@ -400,28 +406,19 @@ restoreVault() {
 
     local backupFile="${restoreFile}"
     local backupFileName="$(basename ${backupFile})"
-    local doneCheck=". ${_greenCheckMark}"
     local oldIds=()
     declare -A idMap=()
 
-    echo
-    echo "$(ansi bold_blue Checking vault)"
-    echo
     assertVaultReady  # (STEP 0)
-
-    echo "Vault is empty."
-    echo
-    echo "$(ansi bold_blue Restoring vault) from $(ansi blue ${backupFileName})"
-    echo
 
     # Extract contents of decrypted backup file to secureWorkDir (STEP 1)
 
+    echo "Preparing backup. You will be prompted for your private key passphrase if encrypted."
     cd "${secureWorkDir}" || fail
     local tarFile="backup.tar"
     rage -d ${identities} "${backupFile}" -o "${tarFile}" 2> >(redStream) || fail
-    echo
-    startSpinner "Preparing import" # don't start until here, since the above will likely prompt for a password
 
+    startSpinner "Preparing import" # don't start until here, since the above will likely prompt for a password
     tar -xf "${tarFile}" --strip-components=1 || fail
     rm "${tarFile}" || fail
 
@@ -471,7 +468,8 @@ restoreVault() {
 
     stopSpinner "${doneCheck}"
 
-    echo
+    logoutFromVault
+
     echo "$(ansi bold_green Restore completed.)"
     echo
     echo "A note named '${restoreNoteName}' was added to your vault with details of this operation."
@@ -590,20 +588,23 @@ uploadAttachments() { # STEP 10
 }
 
 assertVaultReady() {
+    startSpinner "Checking vault"
+
     local vault="$(bw export --raw --format json)"
 
     local orgVault="$(echo "${vault}" | jq '.collections != null' | grep true)"
-    [[ ${orgVault} ]] && fail "Cannot restore to an Organization vault (yet)."
+    [[ ${orgVault} ]] && failSpin "Cannot restore to an Organization vault (yet)."
 
     local itemsCount=$(echo "${vault}" | jq '.items // 0 | length')
     (( itemsCount == 0 )) || failVaultNotEmpty
 
     local foldersCount=$(echo "${vault}" | jq '.folders // 0 | length')
     (( foldersCount == 0 )) || failVaultNotEmpty
+    stopSpinner "${doneCheck}"
 }
 
 failVaultNotEmpty() {
-    warn "This vault must be empty before restoring to it."
+    stopSpinner ": $(ansi red vault must be empty before restoring to it.)"
     echo
     echo "If you are not $(ansi bold_italic sure) that you have a current backup, make another one or restore"
     echo "to a new account (with a Premium subscription if you have attachments)."
@@ -623,15 +624,7 @@ logoutFromVault() {
         bw logout > /dev/null 2>&1
         unset BW_SESSION
     elif [[ ${BW_SESSION} && ! ${VALT_USE_PARENT_SESSION} ]]; then
-        if [[ ${arg} == verbose ]]; then
-            echo
-            echo "$(ansi bold_blue Logging out of vault)  "
-            echo
-            bw logout > /dev/null 2>&1
-            echo "$(ansi bold_green Logged out.)"
-        else
-            bw logout > /dev/null 2>&1
-        fi
+        bw logout > /dev/null 2>&1
         unset BW_SESSION
     fi
 }
