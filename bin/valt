@@ -18,7 +18,7 @@ usage() {
     echo "enabled by setting the BW_CLIENTID and BW_CLIENTSECRET environment variables, for details see"
     echo "$(ansi blue https://bitwarden.com/help/personal-api-key/)."
     echo
-    echo "Backup files are encrypted with $(ansi cyan Age) public keys — see $(ansi blue ${rageProjectUrl}) for details on features"
+    echo "Backup files are encrypted with $(ansi cyan Age) public keys — see $(ansi blue ${rageProjectUrl}) for details on features"   # TODO: sage keys !!!
     echo "and key creation. In the $(ansi cyan Age) system, a public key is called a 'recipient' and a private key is called an"
     echo "'identity'. Identities/private keys $(ansi bold_italic SHOULD) be protected by a strong password for this use case, and a copy"
     echo "of both the key and password should be stored offline in $(ansi italic at least) one secure location."
