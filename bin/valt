@@ -72,12 +72,12 @@ init() {
 
     readonly scriptName="$(basename "${0}")"
     readonly rageProjectUrl='https://github.com/str4d/rage'
-    readonly defaultServerUrl="https://vault.bitwarden.com"
-    readonly backupFileSuffix="tar.gz.age"
-    readonly vaultFileName="vault.json"
-    readonly importVaultFileName="import-vault.json"
-    readonly attachmentsDirName="attachments"
-    readonly restoreNoteName="🔥 Restored Vault"
+    readonly defaultServerUrl='https://vault.bitwarden.com'
+    readonly backupFileSuffix='valt'
+    readonly vaultFileName='vault.json'
+    readonly importVaultFileName='import-vault.json'
+    readonly attachmentsDirName='attachments'
+    readonly restoreNoteName='🔥 Restored Vault'
     readonly doneCheck=". ${_greenCheckMark}"
     declare -grx passwordVisibility="${VALT_BACKUP_PASSWORD_VISIBILITY:-none}"
 
@@ -182,7 +182,7 @@ setDebug() {
 }
 
 debugStatus() {
-    [[ ${_debug} ]] && echo "Debug enabled, log at $(ansi blue ${_debugFile})."
+    [[ ${_debug} ]] && echo "Debug enabled, log at $(ansi blue ${_debugFile}) ${_greenCheckMark}"
 }
 
 debug() {
@@ -626,8 +626,8 @@ failVaultNotEmpty() {
     echo
     echo "  1. In a browser, login at $(ansi blue ${vaultUrl})."
     echo "  2. In the left pane, under $(ansi bold Settings), click $(ansi bold My Account)."
-    echo "  3. In the $(ansi bold_red Danger zone) section, click $(ansi bold_red Purge vault)."
-    echo "  4. In the popup, enter you master password and click $(ansi bold_red Purge vault)."
+    echo "  3. In the $(ansi red Danger zone) section, click $(ansi red Purge vault)."
+    echo "  4. In the popup, enter you master password and click $(ansi red Purge vault)."
     fail
 }
 
