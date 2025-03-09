@@ -28,7 +28,7 @@ usage() {
     echo "afterward. Standard security practice is to use encrypted storage to avoid this risk, so by default you will be"
     echo "prompted to agree that the temp directory is secured. If your system uses whole disk encryption, or if the"
     echo "directory specified via -t is known to be encrypted (e.g. by VeraCrypt), this prompt can be suppressed by"
-    echo "setting the BW_BACKUP_TEMP_DIRECTORY environment variable (see below)."
+    echo "setting the VALT_SECURE_TEMP_DIR environment variable (see below)."
     echo
     echo "Options:"
     echo
@@ -47,11 +47,12 @@ usage() {
     echo
     echo "    BW_CLIENTID                    Set the Bitwarden API key."
     echo "    BW_CLIENTSECRET                Set the Bitwarden API key secret."
-    echo "    BW_BACKUP_PREFIX               Set default backup name prefix."
-    echo "    BW_BACKUP_RECIPIENT            Set default recipient. May be a path to a recipients file."
-    echo "    BW_BACKUP_DIR                  Set the default backup directory."
-    echo "    BW_BACKUP_SECURE_TEMP_DIR      Set the default secure temp directory. Use '@' to create a path via $(ansi italic mktemp)."
-    echo "    BW_BACKUP_PASSWORD_VISIBILITY  Set the visibility of password entry characters: none, hide, show. Default: none"
+    echo "    VALT_BACKUP_DIR                Set the default backup destination directory."
+    echo "    VALT_BACKUP_PREFIX             Set default backup file name prefix."
+    echo "    VALT_RECIPIENT                 Set default recipient. May be a path to a recipients file."
+    echo "    VALT_IDENTITY                  Set default identity file."
+    echo "    VALT_SECURE_TEMP_DIR           Set the default secure temp directory. Use '@' to create a path via $(ansi italic mktemp)."
+    echo "    VALT_PASSWORD_VISIBILITY       Set the visibility of password entry characters: none, hide, show. Default: none"
     bye "${@}"
 }
 
@@ -79,18 +80,18 @@ init() {
     readonly attachmentsDirName='attachments'
     readonly restoreNoteName='🔥 Restored Vault'
     readonly doneCheck=". ${_greenCheckMark}"
-    declare -grx passwordVisibility="${VALT_BACKUP_PASSWORD_VISIBILITY:-none}"
+    declare -grx passwordVisibility="${VALT_PASSWORD_VISIBILITY:-none}"
 
     useRayvnPinEntry
 
     namePrefix="${VALT_BACKUP_PREFIX}"
     vaultUrl=
-    identities=
     backupFile=
     restoreFile=
-    suppliedTempDir="${VALT_BACKUP_SECURE_TEMP_DIR}"
+    suppliedTempDir="${VALT_SECURE_TEMP_DIR}"
     backupDir="${VALT_BACKUP_DIR}"
-    recipients="${VALT_BACKUP_RECIPIENT}"
+    recipients="${VALT_RECIPIENT}"
+    identities="${VALT_IDENTITY}"
 
     [[ ${suppliedTempDir} && ${suppliedTempDir} != @ ]] && setDirVar suppliedTempDir "${suppliedTempDir}"
     [[ ${backupDir} ]] && setDirVar backupDir "${backupDir}"
@@ -107,7 +108,7 @@ init() {
         -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
         -p | --prefix) shift; namePrefix="${1}" ;;
         -u | --url) shift; vaultUrl="${1}" ;;
-        -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION VALT_BACKUP_DEV_PWD ;;
+        -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION VALT_DEV_BW_PWD ;;
         -h | --help) usage ;;
         -v | --version) version "${VALT_BACKUP_VERSION}" ;;
         *) fail "Unknown argument: ${1}" ;;
@@ -305,7 +306,7 @@ unlockVault() {
 
 openVault() {
     local command=${1}
-    if [[ ${VALT_BACKUP_DEV_PWD} ]]; then
+    if [[ ${VALT_DEV_BW_PWD} ]]; then
         useDevPassword ${command}
     else
         useCredentials ${command}
@@ -315,7 +316,7 @@ useDevPassword() {
     local command=${1}
     debug "useDevPassword ${command}"
     [[ ${command} == login ]] && stopSpinner ". Credentials required..."
-    BW_SESSION="$(bw ${command} --raw --passwordenv VALT_BACKUP_DEV_PWD)"
+    BW_SESSION="$(bw ${command} --raw --passwordenv VALT_DEV_BW_PWD)"
     [[ ${command} == unlock ]] && stopSpinner "${doneCheck}"
 }
 useCredentials() {
@@ -323,7 +324,6 @@ useCredentials() {
     stopSpinner ". Credentials required..."
     debug "useCredentials ${command}"
     for retryIndex in {1..3}; do
-        echo
         BW_SESSION="$(bw ${command} --raw)" && break
     done
 }
