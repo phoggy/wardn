@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2155
 
-declare -grx BW_BACKUP_VERSION='bw-backup 0.1.0'
+declare -grx BW_BACKUP_VERSION='0.1.0'
 
 # TODO: what to do about account recovery code?
 
