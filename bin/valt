@@ -652,11 +652,11 @@ cleanup() {
     fi
 }
 
-# Load core library
+# Load rayvn library
 
 source "${HOME}/.rayvn/boot.sh" 2> /dev/null || { echo 'rayvn not installed' && exit 0; }
-require 'core/base'
-require 'core/spinner'
+require 'rayvn/core'
+require 'rayvn/spinner'
 
 # Define required executables (assertion in main to avoid delay with help).
 
