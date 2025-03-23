@@ -58,7 +58,7 @@ usage() {
 
 main() {
     [[ ${VALT_DEBUG} ]] && setDebug
-    assertExecutables requiredExecutables
+    assertExecutables valt_dependencies
     init "${@}"
     prepareVault
     if [[ ${restoreFile} ]]; then
@@ -109,6 +109,7 @@ init() {
         -p | --prefix) shift; namePrefix="${1}" ;;
         -u | --url) shift; vaultUrl="${1}" ;;
         -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION VALT_DEV_BW_PWD ;;
+        --update) update-bw; exit 0 ;;
         -h | --help) usage ;;
         -v | --version) version "${VALT_BACKUP_VERSION}" ;;
         *) fail "Unknown argument: ${1}" ;;
@@ -652,6 +653,30 @@ cleanup() {
     fi
 }
 
+update-bw () { # TODO: harden and expose command!
+    local url="${1}"
+    local installFile="$(which bw)"
+    local installDir="$(dirname ${installFile})"
+    echo "Installed version: $(${installFile} --version)"
+    if [[ ! ${url} ]]; then
+        local response="$(bw update | grep http)"
+        if [[ ${response} ]]; then
+            url="http${response##*http}"
+        fi
+    fi
+    if [[ "${url}" ]]; then
+        local tempFile="${installFile}.zip"
+        curl "${url}" -L -o "${tempFile}" 2> /dev/null || return
+        rm "${installFile}" 2>&1 > /dev/null
+        unzip -q -u "${tempFile}" -d "${installDir}"
+        rm "${tempFile}" || return
+        chmod +x "${installFile}" || return
+        echo "       Updated to: $(${installFile} --version)"
+    else
+        echo "No update available."
+    fi
+}
+
 # Load rayvn library
 
 source "${HOME}/.rayvn/boot.sh" 2> /dev/null || { echo 'rayvn not installed' && exit 0; }
@@ -660,7 +685,7 @@ require 'rayvn/spinner'
 
 # Define required executables (assertion in main to avoid delay with help).
 
-declare -A requiredExecutables=(
+declare -grxA valt_dependencies=(
 
     [bw_min]='2025.1.0'
     [bw_brew]=false
