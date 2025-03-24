@@ -1,2 +1,7 @@
-namespace = valt
-binaries = valt
+# rayvn package attributes
+
+projectName='valt'
+projectVersion='0.1.0'
+projectHasLibraries=false
+projectBinaries=('valt')
+
