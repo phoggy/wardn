@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2155
 
-declare -grx BW_BACKUP_VERSION='0.1.0'
-
 # TODO: what to do about account recovery code?
 
 # shellcheck disable=SC2120
@@ -72,6 +70,8 @@ init() {
     [[ ${LANG} =~ .UTF-8 ]] || warn "The LANG env var should be a UTF-8 type, but is ${LANG}"
 
     readonly scriptName="$(basename "${0}")"
+    readonly scriptHome=$(realpath "$(dirname "${0}/../../..")")
+
     readonly rageProjectUrl='https://github.com/str4d/rage'
     readonly defaultServerUrl='https://vault.bitwarden.com'
     readonly backupFileSuffix='valt'
@@ -111,7 +111,7 @@ init() {
         -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION VALT_DEV_BW_PWD ;;
         --update) update-bw; exit 0 ;;
         -h | --help) usage ;;
-        -v | --version) version "${VALT_BACKUP_VERSION}" ;;
+        -v | --version) version "${scriptHome}"; exit 0 ;;
         *) fail "Unknown argument: ${1}" ;;
         esac
         shift
