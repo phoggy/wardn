@@ -1,8 +1,8 @@
 # rayvn package
 
 projectName='valt'
-projectVersion='0.1.0'
-projectReleaseDate='2025-04-06_12.00.38_PDT'
+projectVersion='0.1.0+'
+projectReleaseDate=''
 projectHasLibraries=false
 projectBinaries=('valt')
 
