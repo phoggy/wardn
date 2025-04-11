@@ -18,7 +18,7 @@ usage() {
     echo
     echo "Backup files are encrypted with $(ansi cyan Age) public keys — see $(ansi blue ${rageProjectUrl}) for details on features"   # TODO: sage keys !!!
     echo "and key creation. In the $(ansi cyan Age) system, a public key is called a 'recipient' and a private key is called an"
-    echo "'identity'. Identities/private keys $(ansi bold_italic SHOULD) be protected by a strong password for this use case, and a copy"
+    echo "'identity'. Identities/private keys $(ansi bold_italic should) be protected by a strong password for this use case, and a copy"
     echo "of both the key and password should be stored offline in $(ansi italic at least) one secure location."
     echo
     echo "$(ansi bold_green Note) A temporary directory is required during both operations, and $(ansi italic unencrypted) vault data will be stored there."
@@ -748,19 +748,16 @@ update-bw () { # TODO: harden and expose command!
     fi
 }
 
-# Load rayvn library
+# Boot rayvn with initial required libraries
 
+source rayvn.up 'rayvn/core' 'rayvn/spinner'
 
-source "${HOME}/.rayvn/boot.sh" &> /dev/null || { echo 'rayvn not installed'; exit 1; }
-require 'rayvn/core'
-require 'rayvn/spinner'
-
-# Define required executables (assertion in main to avoid delay with help).
+# Define required executables (assertion in main)
 
 declare -grxA valt_dependencies=(
 
     [bw_min]='2025.1.0'
-    [bw_brew]=false
+    [bw_brew]=false # TODO: create formula using https://bitwarden.com/download/?app=cli&platform=macos
     [bw_install]='https://bitwarden.com/download/#downloads-command-line-interface'
     [bw_version]='versionExtract'
 
