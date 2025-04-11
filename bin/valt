@@ -184,51 +184,6 @@ initSecureTempDir() {
     [[ ${verifySecure} ]] && verifySecureTempDir
 }
 
-setDebug() {
-    declare -grx _debug=true
-    declare -grx _debugDir="${HOME}/.valt"
-    declare -grx _debugFile="${_debugDir}/log"
-    [[ -e ${_debugDir} ]] && (rm -rf "${_debugDir}" || fail)
-    mkdir "${_debugDir}" || fail
-    exec 3> "${_debugFile}"
-    printf "___ valt log $(date) _________________________________\n\n" >&3
-}
-
-debugStatus() {
-    [[ ${_debug} ]] && echo "Debug enabled, log at $(ansi blue ${_debugFile}) ${_greenCheckMark}"
-}
-
-debug() {
-    [[ ${_debug} ]] && echo "${@}" >&3
-}
-
-debugVar() {
-    if [[ ${_debug} ]]; then
-        for varName in "$@"; do
-            declare -p ${varName} >&3
-        done
-    fi
-}
-
-debugFile() {
-    if [[ ${_debug} ]]; then
-        local sourceFile="${1}"
-        local fileName="${2:-$(baseName ${sourceFile})}"
-        local destFile="${_debugDir}/${fileName}"
-        cp "${sourceFile}" "${destFile}"
-    fi
-}
-
-debugJson() {
-    if [[ ${_debug} ]]; then
-        local -n json="${1}"
-        local fileName="${2}"
-        local destFile="${_debugDir}/${fileName}.json"
-        debug "created ${destFile}"
-        echo "${json}" > "${destFile}"
-    fi
-}
-
 verifySecureTempDir() {
     local source
     local reply
@@ -607,7 +562,7 @@ restoreItems() { # STEP 8
         indexedName=$(echo ${newItem} | jq -r '.name')
         name="${indexedName#\<[0-9]*\> }"
 
-        debug ''; debugVar i oldId newId indexedName name
+        debug ''; debugVars i oldId newId indexedName name
 
         # Update newItem
 
@@ -662,10 +617,10 @@ uploadAttachments() { # STEP 10
         pushd "${attachmentDir}" > /dev/null || fail
         local oldAttachmentItemId="$(basename ${attachmentDir})"
         local newAttachmentItemId="${idMapRef[${oldAttachmentItemId}]}"
-        debugVar oldAttachmentItemId newAttachmentItemId
+        debugVars oldAttachmentItemId newAttachmentItemId
 
         for attachmentFile in ./*; do
-            debugVar attachmentFile
+            debugVars attachmentFile
             bw create attachment --file "./${attachmentFile}" --itemid "${newAttachmentItemId}" > /dev/null || fail
         done
         popd > /dev/null || fail
