@@ -122,6 +122,9 @@ init() {
         -u | --url) shift; vaultUrl="${1}" ;;
         -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION VALT_DEV_BW_PWD ;;
         --update) update-bw; exit 0 ;;
+        --debug) setDebug showOnExit ;;
+        --debug-new) setDebug clearLog showOnExit ;;
+        --debug-out) setDebug noLog ;;
         -h | --help) usage ;;
         -v | --version) version "${scriptHome}"; exit 0 ;;
         *) fail "Unknown argument: ${1}" ;;
@@ -705,7 +708,7 @@ update-bw () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up 'rayvn/core' 'rayvn/spinner'
+source rayvn.up 'rayvn/core' 'rayvn/spinner' 'rayvn/debug'
 
 # Define required executables (assertion in main)
 
@@ -727,5 +730,7 @@ declare -grxA valt_dependencies=(
     [jq_install]='https://jqlang.github.io/jq/download/'
     [jq_version]='versionExtractDash'
 )
+
+# [[ ${VALT_DEBUG} ]] && setDebug ${VALT_DEBUG} # TODO move to init
 
 main "${@}"
