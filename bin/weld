@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2155
 
+options: bwv, moat, snag, tuck
 # TODO: what to do about account recovery code?
 
 # shellcheck disable=SC2120
@@ -16,7 +17,7 @@ usage() {
     echo "enabled by setting the BW_CLIENTID and BW_CLIENTSECRET environment variables, for details see"
     echo "$(ansi blue https://bitwarden.com/help/personal-api-key/)."
     echo
-    echo "Backup files are encrypted with $(ansi cyan Age) public keys — see $(ansi blue ${rageProjectUrl}) for details on features"   # TODO: sage keys !!!
+    echo "Backup files are encrypted with $(ansi cyan Age) public keys — see $(ansi blue ${rageProjectUrl}) for details on features"   # TODO: valt keys !!!
     echo "and key creation. In the $(ansi cyan Age) system, a public key is called a 'recipient' and a private key is called an"
     echo "'identity'. Identities/private keys $(ansi bold_italic should) be protected by a strong password for this use case, and a copy"
     echo "of both the key and password should be stored offline in $(ansi italic at least) one secure location."
@@ -232,9 +233,9 @@ useParentSession() {
 ensureLatestCLI() {
     startSpinner "Checking Bitwarden CLI version"
     local update="$(bw update 2>&1)"
-    bwPath=$(command -v bw)
+    local bwPath=$(command -v bw)
     if [[ ${update} =~ "new version" ]]; then
-        stopSpinner ": $(ansi bold_red ${bwPath} is out of date.)"
+        stopSpinner ": $(ansi bold_red "${bwPath}" is out of date.)"
         echo
         echo "${update}"
         fail
@@ -683,7 +684,7 @@ cleanup() {
 }
 
 update-bw () { # TODO: harden and expose command!
-    local url="${1}"
+#    local url="${1}"
     local installFile="$(command -v bw)"
     local installDir="$(dirname ${installFile})"
     echo "Installed version: $(${installFile} --version)"
@@ -731,6 +732,6 @@ declare -grxA valt_dependencies=(
     [jq_version]='versionExtractDash'
 )
 
-# [[ ${VALT_DEBUG} ]] && setDebug ${VALT_DEBUG} # TODO move to init
+# [[ ${WELD_DEBUG} ]] && setDebug ${WELD_DEBUG} # TODO move to init
 
 main "${@}"
