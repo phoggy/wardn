@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2155
 
-options: bwv, moat, snag, tuck
 # TODO: what to do about account recovery code?
 
 # shellcheck disable=SC2120
@@ -27,7 +26,7 @@ usage() {
     echo "afterward. Standard security practice is to use encrypted storage to avoid this risk, so by default you will be"
     echo "prompted to agree that the temp directory is secured. If your system uses whole disk encryption, or if the"
     echo "directory specified via -t is known to be encrypted (e.g. by VeraCrypt), this prompt can be suppressed by"
-    echo "setting the WELD_SECURE_TEMP_DIR environment variable (see below)."
+    echo "setting the WARDN_SECURE_TEMP_DIR environment variable (see below)."
     echo
     echo "Options:"
     echo
@@ -46,18 +45,18 @@ usage() {
     echo
     echo "    BW_CLIENTID                    Set the Bitwarden API key."
     echo "    BW_CLIENTSECRET                Set the Bitwarden API key secret."
-    echo "    WELD_BACKUP_DIR                Set the default backup destination directory."
-    echo "    WELD_BACKUP_PREFIX             Set default backup file name prefix."
-    echo "    WELD_RECIPIENT                 Set default recipient. May be a path to a recipients file."
-    echo "    WELD_IDENTITY                  Set default identity file."
-    echo "    WELD_SECURE_TEMP_DIR           Set the default secure temp directory. Use '@' to create a path via $(ansi italic mktemp)."
-    echo "    WELD_PASSWORD_VISIBILITY       Set the visibility of password entry characters: none, hide, show. Default: none"
+    echo "    WARDN_BACKUP_DIR                Set the default backup destination directory."
+    echo "    WARDN_BACKUP_PREFIX             Set default backup file name prefix."
+    echo "    WARDN_RECIPIENT                 Set default recipient. May be a path to a recipients file."
+    echo "    WARDN_IDENTITY                  Set default identity file."
+    echo "    WARDN_SECURE_TEMP_DIR           Set the default secure temp directory. Use '@' to create a path via $(ansi italic mktemp)."
+    echo "    WARDN_PASSWORD_VISIBILITY       Set the visibility of password entry characters: none, hide, show. Default: none"
     bye "${@}"
 }
 
 main() {
-    [[ ${WELD_DEBUG} ]] && setDebug
-    assertExecutables weld_dependencies
+    [[ ${WARDN_DEBUG} ]] && setDebug
+    assertExecutables wardn_dependencies
     init "${@}"
     prepareVault
     if [[ ${restoreFile} ]]; then
@@ -81,22 +80,22 @@ init() {
     readonly attachmentsDirName='attachments'
     readonly restoreNoteName='🔥 Restored Vault'
     readonly doneCheck=". ${_greenCheckMark}"
-    declare -grx passwordVisibility="${WELD_PASSWORD_VISIBILITY:-none}"
+    declare -grx passwordVisibility="${WARDN_PASSWORD_VISIBILITY:-none}"
 
     useRayvnPinEntry
 
-    namePrefix="${WELD_BACKUP_PREFIX}"
+    namePrefix="${WARDN_BACKUP_PREFIX}"
     vaultUrl=
     backupFile=
     restoreFile=
 
-    suppliedTempDir="${WELD_SECURE_TEMP_DIR}"
+    suppliedTempDir="${WARDN_SECURE_TEMP_DIR}"
     [[ ${suppliedTempDir} && ${suppliedTempDir} != @ ]] && setDirVar suppliedTempDir "${suppliedTempDir}"
 
-    backupDir="${WELD_BACKUP_DIR}"
+    backupDir="${WARDN_BACKUP_DIR}"
     [[ ${backupDir} ]] && setDirVar backupDir "${backupDir}"
 
-    recipients="${WELD_RECIPIENT}"
+    recipients="${WARDN_RECIPIENT}"
     if [[ ${recipients} ]]; then
         if [[ -f ${recipients} ]]; then
             recipients="-R ${recipients}"
@@ -105,7 +104,7 @@ init() {
         fi
     fi
 
-    identities="${WELD_IDENTITY}"
+    identities="${WARDN_IDENTITY}"
     if [[ ${identities} ]]; then
         assertFile "${identities}"  ; bye
     fi
@@ -121,7 +120,7 @@ init() {
         -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
         -p | --prefix) shift; namePrefix="${1}" ;;
         -u | --url) shift; vaultUrl="${1}" ;;
-        -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION WELD_DEV_BW_PWD ;;
+        -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION WARDN_DEV_BW_PWD ;;
         --update) update-bw; exit 0 ;;
         --debug) setDebug showOnExit ;;
         --debug-new) setDebug clearLog showOnExit ;;
@@ -221,7 +220,7 @@ prepareVault() {
 }
 
 useParentSession() {
-    if [[ ${WELD_USE_PARENT_SESSION} && ${BW_SESSION} ]]; then
+    if [[ ${WARDN_USE_PARENT_SESSION} && ${BW_SESSION} ]]; then
         if [[ $(sessionStatus) == unlocked ]]; then
             echo "Skipping login, parent session appears valid${doneCheck}"
             return 0
@@ -277,7 +276,7 @@ unlockVault() {
 
 openVault() {
     local command=${1}
-    if [[ ${WELD_DEV_BW_PWD} ]]; then
+    if [[ ${WARDN_DEV_BW_PWD} ]]; then
         useDevPassword ${command}
     else
         useCredentials ${command}
@@ -287,7 +286,7 @@ useDevPassword() {
     local command=${1}
     debug "useDevPassword ${command}"
     [[ ${command} == login ]] && stopSpinner ". Credentials required..."
-    BW_SESSION="$(bw ${command} --raw --passwordenv WELD_DEV_BW_PWD)"
+    BW_SESSION="$(bw ${command} --raw --passwordenv WARDN_DEV_BW_PWD)"
     [[ ${command} == unlock ]] && stopSpinner "${doneCheck}"
 }
 
@@ -667,7 +666,7 @@ logoutFromVault() {
     if [[ ${arg} == force ]]; then
         bw logout > /dev/null 2>&1
         unset BW_SESSION
-    elif [[ ${BW_SESSION} && ! ${WELD_USE_PARENT_SESSION} ]]; then
+    elif [[ ${BW_SESSION} && ! ${WARDN_USE_PARENT_SESSION} ]]; then
         bw logout > /dev/null 2>&1
         unset BW_SESSION
     fi
@@ -713,7 +712,7 @@ source rayvn.up 'rayvn/core' 'rayvn/spinner' 'rayvn/debug'
 
 # Define required executables (assertion in main)
 
-declare -grxA weld_dependencies=(
+declare -grxA wardn_dependencies=(
 
     [bw_min]='2025.1.0'
     [bw_brew]=false # TODO: create formula using https://bitwarden.com/download/?app=cli&platform=macos
@@ -732,6 +731,6 @@ declare -grxA weld_dependencies=(
     [jq_version]='versionExtractDash'
 )
 
-# [[ ${WELD_DEBUG} ]] && setDebug ${WELD_DEBUG} # TODO move to init
+# [[ ${WARDN_DEBUG} ]] && setDebug ${WARDN_DEBUG} # TODO move to init
 
 main "${@}"
