@@ -33,7 +33,7 @@ usage() {
     echo "    -t, --temp-dir PATH            Use the directory at PATH for temporary storage."
     echo "    -r, --recipient RECIPIENT      Encrypt to the specified RECIPIENT (public key). May be repeated."
     echo "    -R, --recipients-file PATH     Encrypt to the recipients (public keys) listed at PATH. May be repeated."
-    echo "    -b, --backup-dir PATH          Use the directory at PATH to store the encrypted backup."
+    echo "    -b, --backup-dir PATH          Use the secure directory at PATH to store the encrypted backup."
     echo "    -p, --prefix PREFIX            Set a prefix for the backup file name."
     echo "    -u, --url URL                  Set the URL for the Bitwarden server. Defaults to ${defaultServerUrl}"
     echo "    -i, --identity IDENTITY        Restore using the identity (private key) file at IDENTITY. May be repeated."
@@ -45,17 +45,17 @@ usage() {
     echo
     echo "    BW_CLIENTID                    Set the Bitwarden API key."
     echo "    BW_CLIENTSECRET                Set the Bitwarden API key secret."
-    echo "    WARDN_BACKUP_DIR                Set the default backup destination directory."
-    echo "    WARDN_BACKUP_PREFIX             Set default backup file name prefix."
-    echo "    WARDN_RECIPIENT                 Set default recipient. May be a path to a recipients file."
-    echo "    WARDN_IDENTITY                  Set default identity file."
-    echo "    WARDN_SECURE_TEMP_DIR           Set the default secure temp directory. Use '@' to create a path via $(ansi italic mktemp)."
-    echo "    WARDN_PASSWORD_VISIBILITY       Set the visibility of password entry characters: none, hide, show. Default: none"
+    echo "    WARDN_BACKUP_DIR               Set the default backup destination directory."
+    echo "    WARDN_BACKUP_PREFIX            Set default backup file name prefix."
+    echo "    WARDN_RECIPIENT                Set default recipient. May be a path to a recipients file."
+    echo "    WARDN_IDENTITY                 Set default identity file."
+    echo "    WARDN_SECURE_TEMP_DIR          Set the default secure temp directory. Use '@' to create a path via $(ansi italic mktemp)."
+    echo "    WARDN_PASSWORD_VISIBILITY      Set the visibility of password entry characters: none, hide, show. Default: none"
     bye "${@}"
 }
 
 main() {
-    [[ ${WARDN_DEBUG} ]] && setDebug
+    # [[ ${WARDN_DEBUG} ]] && setDebug  # TODO
     assertExecutables wardn_dependencies
     init "${@}"
     prepareVault
@@ -92,9 +92,6 @@ init() {
     suppliedTempDir="${WARDN_SECURE_TEMP_DIR}"
     [[ ${suppliedTempDir} && ${suppliedTempDir} != @ ]] && setDirVar suppliedTempDir "${suppliedTempDir}"
 
-    backupDir="${WARDN_BACKUP_DIR}"
-    [[ ${backupDir} ]] && setDirVar backupDir "${backupDir}"
-
     recipients="${WARDN_RECIPIENT}"
     if [[ ${recipients} ]]; then
         if [[ -f ${recipients} ]]; then
@@ -106,7 +103,7 @@ init() {
 
     identities="${WARDN_IDENTITY}"
     if [[ ${identities} ]]; then
-        assertFile "${identities}"  ; bye
+        assertFile "${identities}"
     fi
 
     while ((${#} > 0)); do
@@ -121,16 +118,25 @@ init() {
         -p | --prefix) shift; namePrefix="${1}" ;;
         -u | --url) shift; vaultUrl="${1}" ;;
         -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION WARDN_DEV_BW_PWD ;;
-        --update) update-bw; exit 0 ;;
+        --update) updateCLI; exit 0 ;;
         --debug) setDebug showOnExit ;;
         --debug-new) setDebug clearLog showOnExit ;;
         --debug-out) setDebug noLog ;;
         -h | --help) usage ;;
-        -v | --version) version "${scriptHome}"; exit 0 ;;
+        -v) version "${scriptHome}"; exit 0 ;;
+        --version) version "${scriptHome}" true; exit 0 ;;
         *) fail "Unknown argument: ${1}" ;;
         esac
         shift
     done
+
+    if [[ ! ${backupDir} ]]; then
+        if [[ ${WARDN_BACKUP_DIR} ]]; then
+             setDirVar backupDir "${WARDN_BACKUP_DIR}"
+        else
+            fail "Secure backup directory not specified."
+        fi
+    fi
 
     [[ ${vaultUrl} ]] || vaultUrl="${defaultServerUrl}"
 
@@ -237,7 +243,8 @@ ensureLatestCLI() {
         stopSpinner ": $(ansi bold_red "${bwPath}" is out of date.)"
         echo
         echo "${update}"
-        fail
+        echo
+        fail "Try the --update command."
     fi
     stopSpinner ": $(ansi blue "${bwPath}") is up to date at $(bw --version)${doneCheck}"
 }
@@ -368,11 +375,15 @@ backupVault() {
     local attachmentItemIds attachmentItemId
     local attachments attachment
     local attachDir
+    local itemsCount
+    local attachmentsCount
+
     startSpinner "Backing up vault"
 
     bw export --raw --format json > "${vaultFile}" || failSpin
 
     items="$(bw list items)"
+    itemsCount=$(echo "${items}" | jq 'length')
 
     attachmentItemIds="$(echo ${items} | jq -r ".[] | select(.attachments).id")"
 
@@ -392,6 +403,8 @@ backupVault() {
 
             bw get attachment "${attachmentId}" --itemid "${attachmentItemId}" \
                 --output "${attachDir}/${fileName}" >/dev/null 2>&1 || failSpin
+
+            (( attachmentsCount++ ))
         done
     done
 
@@ -400,6 +413,12 @@ backupVault() {
     local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
 
     stopSpinner "${doneCheck}"
+
+    if (( attachmentsCount > 0 )); then
+        echo "Backed up ${itemsCount} items and ${attachmentsCount} attachments ${_greenCheckMark}"
+    else
+        echo "Backed up ${itemsCount} items ${_greenCheckMark}"
+    fi
     logoutFromVault
     echo
     echo "$(ansi bold_green Vault backed up to) ${backupFile} $(ansi bold_green size): $(ansi bold ${size})"
@@ -682,7 +701,7 @@ cleanup() {
     fi
 }
 
-update-bw () { # TODO: harden and expose command!
+updateCLI () { # TODO: harden and expose command!
 #    local url="${1}"
     local installFile="$(command -v bw)"
     local installDir="$(dirname ${installFile})"
