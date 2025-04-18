@@ -415,9 +415,9 @@ backupVault() {
     stopSpinner "${doneCheck}"
 
     if (( attachmentsCount > 0 )); then
-        echo "Backed up ${itemsCount} items and ${attachmentsCount} attachments ${_greenCheckMark}"
+        echo "Backed up ${itemsCount} items and ${attachmentsCount} attachments. ${_greenCheckMark}"
     else
-        echo "Backed up ${itemsCount} items ${_greenCheckMark}"
+        echo "Backed up ${itemsCount} items. ${_greenCheckMark}"
     fi
     logoutFromVault
     echo
