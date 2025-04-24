@@ -123,8 +123,8 @@ init() {
         --debug-new) setDebug clearLog showOnExit ;;
         --debug-out) setDebug noLog ;;
         -h | --help) usage ;;
-        -v) version "${scriptHome}"; exit 0 ;;
-        --version) version "${scriptHome}" true; exit 0 ;;
+        -v) version wardn; exit 0 ;;
+        --version) version wardn true; exit 0 ;;
         *) fail "Unknown argument: ${1}" ;;
         esac
         shift
@@ -727,7 +727,7 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up 'rayvn/core' 'rayvn/spinner' 'rayvn/debug'
+source rayvn.up --add 'wardn' 'rayvn/spinner' 'rayvn/debug'
 
 # Define required executables (assertion in main)
 
