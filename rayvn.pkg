@@ -3,6 +3,5 @@
 projectName='wardn'
 projectVersion='0.1.0+'
 projectReleaseDate=''
-projectLibraries=
 projectBinaries=('wardn')
 
