@@ -67,10 +67,7 @@ main() {
 }
 
 init() {
-    [[ ${LANG} =~ .UTF-8 ]] || warn "The LANG env var should be a UTF-8 type, but is ${LANG}"
-
     readonly scriptName="$(basename "${0}")"
-    readonly scriptHome=$(realpath "$(dirname "${0}/../../..")")
 
     readonly rageProjectUrl='https://github.com/str4d/rage'
     readonly defaultServerUrl='https://vault.bitwarden.com'
@@ -166,8 +163,6 @@ init() {
     initSecureTempDir
     readonly secureWorkDir="$(makeDir "${secureTempDir}" "${backupName}")"
     chmod 700 "${secureWorkDir}" || fail
-    readonly vaultFile="${secureWorkDir}/vault.json"
-    readonly attachmentsDir="$(makeDir ${secureWorkDir} attachments)"
 }
 
 initSecureTempDir() {
@@ -307,63 +302,6 @@ useCredentials() {
     done
 }
 
-#colorPrompt() { # TODO remove!
-#    local char
-#    local buffer=''
-#    local -i bufferEmpty=1  # 1 = buffer is empty, 0 = buffer has content
-#    local -i state=0        # 0 = normal, 1 = prompt, 2 = bracket
-#
-#    while IFS= read -r -n1 char; do
-#        if (( state == 0 )); then  # Normal state
-#            buffer+="${char}"
-#            bufferEmpty=0  # Buffer now has content
-#            printTop "first char: ${char}"
-#            if [[ ${char} == '?' && ${bufferEmpty} -eq 1 ]]; then
-#                state=1  # Transition to prompt state
-#                printTop "enter prompt state" > ${terminal}
-#            elif [[ ${char} == ${newline} ]]; then
-#                echo -n "${buffer}" > ${terminal} || return
-#                printTop "normal line: ${buffer}"
-#                buffer=''
-#                bufferEmpty=1  # Reset bufferEmpty since it's a new line
-#            fi
-#
-#        elif (( state == 1 )); then  # Prompt state
-#            buffer+="${char}"
-#            if [[ ${char} == ']' ]]; then
-#                state=2  # Transition to bracket state
-#                printTop "enter bracket state"
-#            fi
-#
-#        elif (( state == 2 )); then  # Bracket state
-#            buffer+="${char}"
-#            if [[ ${char} == ' ' ]]; then
-#                printTop "printing prompt"
-#                echo -e '\e[31m'"${buffer}"'\e[0m' > ${terminal} || return
-#                buffer=''
-#                bufferEmpty=1  # Reset bufferEmpty since the prompt is printed
-#                state=0  # Reset to normal state
-#            else
-#                printTop "revert to prompt state"
-#                state=1  # If not a space, revert to prompt state
-#            fi
-#        fi
-#    done
-#
-#    # Print any remaining buffered content if input ends without a newline
-#    printTop "last buffer: ${buffer}"
-#    [[ -n ${buffer} ]] && echo -n "${buffer}" > ${terminal}
-#}
-#
-#printTop() {
-#    local message="${1}"
-#    (
-#        echo -n -e "\033[s\033[H\033[K"  # save cursor, move to 0,0 & clear line
-#        echo -n "${message}"
-#        echo -n -e "\033[u" # restore cursor
-#    ) > ${terminal}
-#}
-
 syncVault() {
     startSpinner "Syncing vault"
     bw sync > /dev/null || fail
@@ -371,53 +309,30 @@ syncVault() {
 }
 
 backupVault() {
-    local items item
-    local attachmentItemIds attachmentItemId
-    local attachments attachment
-    local attachDir
-    local itemsCount
-    local attachmentsCount
+    local vaultFile="${secureWorkDir}/data.json"
+    local attachmentsDir="${secureWorkDir}/attachments"
+    local itemsCount foldersCount attachmentsCount
+    local size
+    local folders=''
 
     startSpinner "Backing up vault"
 
-    bw export --raw --format json > "${vaultFile}" || failSpin
+    bw export --raw --format zip | tar xC "${secureWorkDir}" || failspin
 
-    items="$(bw list items)"
-    itemsCount=$(echo "${items}" | jq 'length')
+    itemsCount=$(cat "${vaultFile}" | jq '.items // 0 | length')
+    foldersCount=$(cat "${vaultFile}" | jq '.folders // 0 | length')
+    attachmentsCount=$(find "${attachmentsDir}" -type f | wc -l | tr -d ' ')
 
-    attachmentItemIds="$(echo ${items} | jq -r ".[] | select(.attachments).id")"
-
-    for attachmentItemId in ${attachmentItemIds}; do
-        item="$(echo "${items}" | jq -r ".[] | select(.id == \"${attachmentItemId}\")")"
-        attachments="$(echo "${item}" | jq -r ".attachments")"
-        length="$(echo "${attachments}" | jq -r ". | length")"
-
-        for ((retryIndex = 0; retryIndex < ${length}; retryIndex++)); do
-            attachDir="$(makeDir ${attachmentsDir} ${attachmentItemId})"
-
-            attachment="$(echo "${attachments}" | jq ".[${retryIndex}]")"
-            attachmentId="$(echo "${attachment}" | jq -r ".id")"
-            fileName="$(echo "${attachment}" | jq -r ".fileName")"
-
-            # get attachment
-
-            bw get attachment "${attachmentId}" --itemid "${attachmentItemId}" \
-                --output "${attachDir}/${fileName}" >/dev/null 2>&1 || failSpin
-
-            (( attachmentsCount++ ))
-        done
-    done
-
-    # TODO can recipients be encrypted?
-    tar cz "${backupName}" | rage ${recipients} > ${backupFile} || failSpin
-    local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
+    tar cz . | rage ${recipients} > "${backupFile}" || failSpin
+    size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
 
     stopSpinner "${doneCheck}"
 
+    (( foldersCount > 0 )) && folders=" in ${foldersCount} folders"
     if (( attachmentsCount > 0 )); then
-        echo "Backed up ${itemsCount} items and ${attachmentsCount} attachments. ${_greenCheckMark}"
+        echo "Backed up ${itemsCount} items${folders} with ${attachmentsCount} attachments. ${_greenCheckMark}"
     else
-        echo "Backed up ${itemsCount} items. ${_greenCheckMark}"
+        echo "Backed up ${itemsCount} items${folders}. ${_greenCheckMark}"
     fi
     logoutFromVault
     echo
@@ -466,22 +381,26 @@ restoreVault() {
     # (https://github.com/bitwarden/clients/issues/13429) and the code is commented until a fix is implemented.
 
     local backupFile="${restoreFile}"
-    local backupFileName="$(basename ${backupFile})"
-    local oldIds=()
-    declare -A idMap=()
+
+    cd "${secureWorkDir}" || fail
 
     assertVaultReady  # (STEP 0)
 
-    # Extract contents of decrypted backup file to secureWorkDir (STEP 1)
+    # Extract contents of decrypted backup file to secureWorkDir and zip it
 
     echo "Preparing backup. You will be prompted for your private key passphrase if encrypted."
-    cd "${secureWorkDir}" || fail
     local tarFile="backup.tar"
     rage -d ${identities} "${backupFile}" -o "${tarFile}" 2> >(redStream) || fail
 
     startSpinner "Preparing import" # don't start until here, since the above will likely prompt for a password
     tar -xf "${tarFile}" --strip-components=1 || fail
     rm "${tarFile}" || fail
+
+    local zipFile="backup.zip"
+    zip -r "${zipFile}" . || fail
+
+    # TODO: ARGH! bitwarden cannot IMPORT zip file!!! Stopped here, moving to branch for when/if this is fixed
+
 
     # Get vault and grab some stats from it (STEPS 2 & 3)
 
