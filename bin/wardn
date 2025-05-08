@@ -55,9 +55,10 @@ usage() {
 }
 
 main() {
-    # [[ ${WARDN_DEBUG} ]] && setDebug  # TODO
-    assertExecutables wardn_dependencies
     init "${@}"
+
+generateSecurityKit; bye # TODO REMOVE!
+
     prepareVault
     if [[ ${restoreFile} ]]; then
         restoreVault
@@ -67,11 +68,8 @@ main() {
 }
 
 init() {
-    [[ ${LANG} =~ .UTF-8 ]] || warn "The LANG env var should be a UTF-8 type, but is ${LANG}"
-
     readonly scriptName="$(basename "${0}")"
-    readonly scriptHome=$(realpath "$(dirname "${0}/../../..")")
-
+    readonly wardnEtcDir="${wardnHome}/etc"
     readonly rageProjectUrl='https://github.com/str4d/rage'
     readonly defaultServerUrl='https://vault.bitwarden.com'
     readonly backupFileSuffix='valt'
@@ -129,6 +127,9 @@ init() {
         esac
         shift
     done
+
+    # Do this here to avoid the nearly one second overhead when help is requested
+    assertExecutables wardn_dependencies
 
     if [[ ! ${backupDir} ]]; then
         if [[ ${WARDN_BACKUP_DIR} ]]; then
@@ -289,6 +290,7 @@ openVault() {
         useCredentials ${command}
     fi
 }
+
 useDevPassword() {
     local command=${1}
     debug "useDevPassword ${command}"
@@ -303,66 +305,8 @@ useCredentials() {
     debug "useCredentials ${command}"
     for retryIndex in {1..3}; do
         BW_SESSION="$(bw ${command} --raw)" && break
-        # bw ${command} --raw 2> colorPrompt 1> ${terminal} && break # could not find a variant of this that works TODO REMOVE
     done
 }
-
-#colorPrompt() { # TODO remove!
-#    local char
-#    local buffer=''
-#    local -i bufferEmpty=1  # 1 = buffer is empty, 0 = buffer has content
-#    local -i state=0        # 0 = normal, 1 = prompt, 2 = bracket
-#
-#    while IFS= read -r -n1 char; do
-#        if (( state == 0 )); then  # Normal state
-#            buffer+="${char}"
-#            bufferEmpty=0  # Buffer now has content
-#            printTop "first char: ${char}"
-#            if [[ ${char} == '?' && ${bufferEmpty} -eq 1 ]]; then
-#                state=1  # Transition to prompt state
-#                printTop "enter prompt state" > ${terminal}
-#            elif [[ ${char} == ${newline} ]]; then
-#                echo -n "${buffer}" > ${terminal} || return
-#                printTop "normal line: ${buffer}"
-#                buffer=''
-#                bufferEmpty=1  # Reset bufferEmpty since it's a new line
-#            fi
-#
-#        elif (( state == 1 )); then  # Prompt state
-#            buffer+="${char}"
-#            if [[ ${char} == ']' ]]; then
-#                state=2  # Transition to bracket state
-#                printTop "enter bracket state"
-#            fi
-#
-#        elif (( state == 2 )); then  # Bracket state
-#            buffer+="${char}"
-#            if [[ ${char} == ' ' ]]; then
-#                printTop "printing prompt"
-#                echo -e '\e[31m'"${buffer}"'\e[0m' > ${terminal} || return
-#                buffer=''
-#                bufferEmpty=1  # Reset bufferEmpty since the prompt is printed
-#                state=0  # Reset to normal state
-#            else
-#                printTop "revert to prompt state"
-#                state=1  # If not a space, revert to prompt state
-#            fi
-#        fi
-#    done
-#
-#    # Print any remaining buffered content if input ends without a newline
-#    printTop "last buffer: ${buffer}"
-#    [[ -n ${buffer} ]] && echo -n "${buffer}" > ${terminal}
-#}
-#
-#printTop() {
-#    local message="${1}"
-#    (
-#        echo -n -e "\033[s\033[H\033[K"  # save cursor, move to 0,0 & clear line
-#        echo -n "${message}"
-#        echo -n -e "\033[u" # restore cursor
-#    ) > ${terminal}
-#}
 
 syncVault() {
     startSpinner "Syncing vault"
@@ -749,7 +693,5 @@ declare -grxA wardn_dependencies=(
     [jq_install]='https://jqlang.github.io/jq/download/'
     [jq_version]='versionExtractDash'
 )
-
-# [[ ${WARDN_DEBUG} ]] && setDebug ${WARDN_DEBUG} # TODO move to init
 
 main "${@}"
