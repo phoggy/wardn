@@ -1,0 +1,217 @@
+{
+	"header": {
+		"source": "https://bitwarden.com/resources/bitwarden-security-readiness-kit/",
+		"version": "pdfcpu v0.10.2 dev",
+		"creation": "2025-05-08 08:52:27 PDT",
+		"creator": "Adobe InDesign 20.1 (Macintosh)",
+		"producer": "pdfcpu v0.10.2 dev"
+	},
+	"forms": [
+		{
+			"textfield": [
+				{
+					"pages": [
+						1
+					],
+					"id": "25",
+					"name": "Text Field 2",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "39",
+					"name": "Text Field 9",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "20",
+					"name": "Text Field 1",
+					"value": "",
+					"multiline": false,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "33",
+					"name": "Text Field 6",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "41",
+					"name": "Text Field 10",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "63",
+					"name": "Text Field 17",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "65",
+					"name": "Text Field 18",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "67",
+					"name": "Text Field 19",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "31",
+					"name": "Text Field 5",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "35",
+					"name": "Text Field 7",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "37",
+					"name": "Text Field 8",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "59",
+					"name": "Text Field 15",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "27",
+					"name": "Text Field 3",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "29",
+					"name": "Text Field 4",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "61",
+					"name": "Text Field 16",
+					"value": "",
+					"multiline": true,
+					"locked": false
+				}
+			],
+			"checkbox": [
+				{
+					"pages": [
+						1
+					],
+					"id": "47",
+					"name": "Check Box 2",
+					"default": false,
+					"value": false,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "50",
+					"name": "Check Box 3",
+					"default": false,
+					"value": false,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "43",
+					"name": "Check Box 1",
+					"default": false,
+					"value": false,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "53",
+					"name": "Check Box 4",
+					"default": false,
+					"value": false,
+					"locked": false
+				},
+				{
+					"pages": [
+						1
+					],
+					"id": "56",
+					"name": "Check Box 5",
+					"default": false,
+					"value": false,
+					"locked": false
+				}
+			]
+		}
+	]
+}
