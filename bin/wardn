@@ -80,8 +80,6 @@ init() {
     readonly doneCheck=". ${_greenCheckMark}"
     declare -grx passwordVisibility="${WARDN_PASSWORD_VISIBILITY:-none}"
 
-    useRayvnPinEntry
-
     namePrefix="${WARDN_BACKUP_PREFIX}"
     vaultUrl=
     backupFile=
