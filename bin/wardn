@@ -56,9 +56,6 @@ usage() {
 
 main() {
     init "${@}"
-
-generateSecurityKit; bye # TODO REMOVE!
-
     prepareVault
     if [[ ${restoreFile} ]]; then
         restoreVault
@@ -68,6 +65,8 @@ generateSecurityKit; bye # TODO REMOVE!
 }
 
 init() {
+    allNewFilesUserOnly
+    useValtPinEntry
     readonly scriptName="$(basename "${0}")"
     readonly wardnEtcDir="${wardnHome}/etc"
     readonly rageProjectUrl='https://github.com/str4d/rage'
@@ -164,7 +163,6 @@ init() {
 
     initSecureTempDir
     readonly secureWorkDir="$(makeDir "${secureTempDir}" "${backupName}")"
-    chmod 700 "${secureWorkDir}" || fail
     readonly vaultFile="${secureWorkDir}/vault.json"
     readonly attachmentsDir="$(makeDir ${secureWorkDir} attachments)"
 }
@@ -350,7 +348,6 @@ backupVault() {
         done
     done
 
-    # TODO can recipients be encrypted?
     tar cz "${backupName}" | rage ${recipients} > ${backupFile} || failSpin
     local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
 
@@ -669,7 +666,7 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up --add 'wardn' 'rayvn/spinner' 'rayvn/debug'
+source rayvn.up --add 'wardn' --add 'valt' 'rayvn/spinner' 'rayvn/debug' 'valt/pinentry'
 
 # Define required executables (assertion in main)
 
