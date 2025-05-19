@@ -125,9 +125,6 @@ init() {
         shift
     done
 
-    # Do this here to avoid the nearly one second overhead when help is requested
-    assertExecutables wardn_dependencies
-
     if [[ ! ${backupDir} ]]; then
         if [[ ${WARDN_BACKUP_DIR} ]]; then
              setDirVar backupDir "${WARDN_BACKUP_DIR}"
@@ -666,27 +663,6 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up --add 'wardn' --add 'valt' 'rayvn/spinner' 'rayvn/debug' 'valt/pinentry'
-
-# Define required executables (assertion in main)
-
-declare -grxA wardn_dependencies=(
-
-    [bw_min]='2025.1.0'
-    [bw_brew]=false # TODO: create formula using https://bitwarden.com/download/?app=cli&platform=macos
-    [bw_install]='https://bitwarden.com/download/#downloads-command-line-interface'
-    [bw_version]='versionExtract'
-
-    [rage_min]='0.11.1'
-    [rage_brew]=true
-    [rage_brew_tap]='str4d.xyz/rage https://str4d.xyz/rage'
-    [rage_install]='https://github.com/str4d/rage'
-    [rage_version]='versionExtract'
-
-    [jq_min]='1.7.1'
-    [jq_brew]=true
-    [jq_install]='https://jqlang.github.io/jq/download/'
-    [jq_version]='versionExtractDash'
-)
+source rayvn.up --add 'wardn,valt' 'rayvn/spinner' 'rayvn/debug' 'valt/pinentry'
 
 main "${@}"
