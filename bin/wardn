@@ -68,7 +68,6 @@ init() {
     allNewFilesUserOnly
     useValtPinEntry
     readonly scriptName="$(basename "${0}")"
-    readonly wardnEtcDir="${wardnHome}/etc"
     readonly rageProjectUrl='https://github.com/str4d/rage'
     readonly defaultServerUrl='https://vault.bitwarden.com'
     readonly backupFileSuffix='valt'
@@ -100,7 +99,6 @@ init() {
     if [[ ${identities} ]]; then
         assertFile "${identities}"
     fi
-
     while ((${#} > 0)); do
         case "${1}" in
         backup) unset restoreFile ;;
@@ -119,7 +117,7 @@ init() {
         --debug-out) setDebug noLog ;;
         -h | --help) usage ;;
         -v) projectVersion wardn; exit 0 ;;
-        --version) preojectVersion wardn true; exit 0 ;;
+        --version) projectVersion wardn true; exit 0 ;;
         *) fail "Unknown argument: ${1}" ;;
         esac
         shift
@@ -663,6 +661,6 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up --add 'wardn,valt' 'rayvn/spinner' 'rayvn/debug' 'valt/pinentry'
+source rayvn.up --add 'wardn,valt' 'rayvn/core' 'rayvn/spinner' 'rayvn/debug' 'valt/pinentry'
 
 main "${@}"

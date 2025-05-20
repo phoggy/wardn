@@ -1,10 +1,16 @@
 # rayvn package
 
 projectName='wardn'
-projectVersion='0.1.0+'
+projectVersion='0.1.0'
 projectReleaseDate=''
 
 declare -gA projectDependencies=(
+
+    [valt_min]='0.1.0'
+    [valt_brew]=true
+    [valt_brew_tap]='phoggy/valt'
+    [valt_install]='https://github.com/phoggy/valt'
+    [valt_extract]=1
 
     [bw_min]='2025.4.0'
     [bw_brew]=false # TODO: create formula using https://bitwarden.com/download/?app=cli&platform=macos
