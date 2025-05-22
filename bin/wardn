@@ -229,16 +229,18 @@ useParentSession() {
 
 ensureLatestCLI() {
     startSpinner "Checking Bitwarden CLI version"
-    local update="$(bw update 2>&1)"
-    local bwPath=$(command -v bw)
-    if [[ ${update} =~ "new version" ]]; then
+
+    # The bw update command may say there is a new version, but it is possible for the brew formula
+    # to be stuck at an older one (e.g. build failures). Since we rely on brew, check
+
+    if brew upgrade --dry-run bitwarden-cli | grep -q "already installed"; then
+        stopSpinner ": $(ansi blue "${bwPath}") is up to date (via brew) at $(bw --version)${doneCheck}"
+    else
         stopSpinner ": $(ansi bold_red "${bwPath}" is out of date.)"
         echo
-        echo "${update}"
-        echo
-        fail "Try the --update command."
+        echo "Try executing: HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade bitwarden-cli"
+        bye
     fi
-    stopSpinner ": $(ansi blue "${bwPath}") is up to date at $(bw --version)${doneCheck}"
 }
 
 sessionStatus() {
@@ -477,7 +479,7 @@ restoreVault() {
 prefixNamesWithIndex() {   # STEP 4
     local -n vaultRef=${1}
     local itemsCount=${2}
-    local name newName
+    local key newName
     local tempVault="${vaultRef}" # TODO don't need this indirection
 
     for ((i = 0; i < itemsCount; i++)); do
@@ -495,7 +497,7 @@ restoreItems() { # STEP 8
     local -n oldIdsRef=${3}
     local -n idMapRef=${4}
     local itemsCount=${5}
-    local i oldId newId newItem indexedName name newItem restoredItem editedItem # cDate rDate dDate
+    local i oldId newId newItem indexedName key newItem restoredItem editedItem # cDate rDate dDate
 
     for (( i = 0; i < itemsCount; i++ )); do
 
@@ -558,7 +560,7 @@ addNote() {  # STEP 9
     debugJson note
 
     local temp=$(bw get template item) || fail
-    local name="${restoreNoteName}"
+    local key="${restoreNoteName}"
     local item=$(echo ${temp} | jq -r --arg nm "${name}" --arg nt "${note}" '.type=2 | .secureNote.type=0 | .name=$nm | .notes=$nt')
     echo ${item} | bw encode | bw create item > /dev/null || fail
 }

@@ -7,26 +7,20 @@ projectReleaseDate=''
 declare -gA projectDependencies=(
 
     [valt_min]='0.1.0'
+    [valt_extract]=1
     [valt_brew]=true
     [valt_brew_tap]='phoggy/valt'
-    [valt_install]='https://github.com/phoggy/valt'
-    [valt_extract]=1
+    [valt_url]='https://github.com/phoggy/valt'
 
-    [bw_min]='2025.4.0'
-    [bw_brew]=false # TODO: create formula using https://bitwarden.com/download/?app=cli&platform=macos
-    [bw_install]='https://bitwarden.com/download/#downloads-command-line-interface'
-    [bw_extract]=1
-
-    [rage_min]='0.11.1'
-    [rage_brew]=true
-    [rage_brew_tap]='str4d.xyz/rage https://str4d.xyz/rage'
-    [rage_install]='https://github.com/str4d/rage'
-    [rage_extract]=1
+    [bitwarden-cli_min]='2025.4.0'
+    [bitwarden-cli_extract]=1
+    [bitwarden-cli_brew]=true
+    [bitwarden-cli_url]='https://bitwarden.com/help/cli/'
 
     [jq_min]='1.7.1'
-    [jq_brew]=true
-    [jq_install]='https://jqlang.github.io/jq/download/'
     [jq_extract]=4
+    [jq_brew]=true
+    [jq_url]='https://jqlang.org/'
 )
 
 
