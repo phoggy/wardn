@@ -12,10 +12,11 @@ declare -gA projectDependencies=(
     [valt_brew_tap]='phoggy/valt'
     [valt_url]='https://github.com/phoggy/valt'
 
-    [bitwarden-cli_min]='2025.4.0'
-    [bitwarden-cli_extract]=1
-    [bitwarden-cli_brew]=true
-    [bitwarden-cli_url]='https://bitwarden.com/help/cli/'
+    [bw_min]='2025.2.0'
+    [bw_brew_name]='bitwarden-cli'
+    [bw_extract]=1
+    [bw_brew]=true
+    [bw_url]='https://bitwarden.com/help/cli/'
 
     [jq_min]='1.7.1'
     [jq_extract]=4
