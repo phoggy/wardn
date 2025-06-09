@@ -99,7 +99,8 @@ init() {
     if [[ ${identities} ]]; then
         assertFile "${identities}"
     fi
-    while ((${#} > 0)); do
+
+    while (( ${#} > 0 )); do
         case "${1}" in
         backup) unset restoreFile ;;
         restore) shift; setFileVar restoreFile "${1}" ;;
@@ -118,7 +119,7 @@ init() {
         -h | --help) usage ;;
         -v) projectVersion wardn; exit 0 ;;
         --version) projectVersion wardn true; exit 0 ;;
-        *) fail "Unknown argument: ${1}" ;;
+        *) usage "Unknown argument: ${1}" ;;
         esac
         shift
     done
@@ -127,7 +128,7 @@ init() {
         if [[ ${WARDN_BACKUP_DIR} ]]; then
              setDirVar backupDir "${WARDN_BACKUP_DIR}"
         else
-            fail "Secure backup directory not specified."
+            usage "Secure backup directory not specified."
         fi
     fi
 
@@ -137,7 +138,7 @@ init() {
 
         # backup
 
-        [[ ${recipients} ]] || fail "one or more recipients required"
+        [[ ${recipients} ]] || usage "one or more recipients required"
         [[ ${namePrefix} ]] || namePrefix="${USER}"
         readonly backupName="${namePrefix}-backup-$(timeStamp)"
 
@@ -163,12 +164,12 @@ init() {
 }
 
 initSecureTempDir() {
-    local verifySecure
     if [[ ${suppliedTempDir} == '' || ${suppliedTempDir} == '@' ]]; then
 
         # Use the rayvn system temp dir which will be deleted by rayvn on exit
 
         secureTempDir="$(tempDirPath)"
+
     else
 
         # User supplied, so generate a temp dir within it. Remember the generated dir
@@ -178,16 +179,16 @@ initSecureTempDir() {
         suppliedTempDir="${suppliedTempDir}"
         generatedTempDir="$(makeDir ${suppliedTempDir} ${randomDirName})"
         secureTempDir=${generatedTempDir}
-        verifySecure=true
     fi
     [[ -d ${secureTempDir} ]] || fail "Secure temp directory ${secureTempDir} not found!"
     cd "${secureTempDir}" || fail
-    [[ ${verifySecure} ]] && verifySecureTempDir
+    if ! isEncryptedVolume "${secureTempDir}"; then
+        verifySecureTempDir
+    fi
 }
 
 verifySecureTempDir() {
-    local source
-    local reply
+    local source reply
     [[ ${generatedTempDir} ]] && source="supplied '${suppliedTempDir}' as root of" || source="system"
     echo
     echo "$(ansi bold Verify configuration)"
@@ -198,6 +199,23 @@ verifySecureTempDir() {
     if [[ ${reply,,} != 'yes' ]]; then
         echo
         fail "See help for more about this issue: ${scriptName} --help"
+    fi
+}
+
+isEncryptedVolume() {
+    local dirPath="${1}"
+    local mountPoint
+    local device
+    if (( onMacOS )); then
+
+        # Resolve the mount point of the directory
+        mountPoint="$(df -P "${dirPath}" | tail -1 | awk '{print $6}')" || return 1
+
+        # Get the device associated with the mount point
+        device="$(df -P "${dirPath}" | tail -1 | awk '{print $1}')" || return 1
+
+        # Check if the device is listed as encrypted
+        diskutil info "${device}" | grep -q "^ *FileVault: *Yes"
     fi
 }
 
@@ -233,12 +251,12 @@ ensureLatestCLI() {
     # The bw update command may say there is a new version, but it is possible for the brew formula
     # to be stuck at an older one (e.g. build failures). Since we rely on brew, check
 
-    if brew upgrade --dry-run bitwarden-cli | grep -q "already installed"; then
+    if HOMEBREW_NO_AUTO_UPDATE= brew upgrade --dry-run bitwarden-cli 2>&1 | grep -q "already installed"; then
         stopSpinner ": $(ansi blue "${bwPath}") is up to date (via brew) at $(bw --version)${doneCheck}"
     else
         stopSpinner ": $(ansi bold_red "${bwPath}" is out of date.)"
         echo
-        echo "Try executing: HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade bitwarden-cli"
+        echo "Try executing: HOMEBREW_NO_AUTO_UPDATE= brew upgrade bitwarden-cli"
         bye
     fi
 }
