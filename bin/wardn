@@ -38,8 +38,9 @@ usage() {
     echo "    -u, --url URL                  Set the URL for the Bitwarden server. Defaults to ${defaultServerUrl}"
     echo "    -i, --identity IDENTITY        Restore using the identity (private key) file at IDENTITY. May be repeated."
     echo "    -l, --login                    Force full login even if API key environment variables are set."
-    echo "    -h, --help                     Display usage and exit."
-    echo "    --version                      Display version and exit."
+    echo "    -h, --help                     Print this help message and exit."
+    echo "    -v                             Print the version and exit."
+    echo "    --version                      Print the version with release date and exit."
     echo
     echo "Environment Variables"
     echo
