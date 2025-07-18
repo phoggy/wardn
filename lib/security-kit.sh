@@ -26,6 +26,12 @@ generateSecurityKit() {
 }
 
 
+PRIVATE_CODE="--+-+-----+-++(-++(---++++(---+( ⚠️ BEGIN 'wardn/security-kit' PRIVATE ⚠️ )+---)++++---)++-)++-+------+-+--"
+
+_init_wardn_security-kit() {
+    require 'rayvn/core'
+}
+
 _initSecurityKit() {
     if [[ ! -v securityKitPdfFile ]]; then
         local basePath="${wardnHome}/etc/bw-security-kit"
