@@ -78,6 +78,8 @@ init() {
     readonly restoreNoteName='🔥 Restored Vault'
     readonly doneCheck=". ${_greenCheckMark}"
     declare -grx passwordVisibility="${WARDN_PASSWORD_VISIBILITY:-none}"
+    declare -g bwPath
+    bwPath=${ which bw; }
 
     namePrefix="${WARDN_BACKUP_PREFIX}"
     vaultUrl=
@@ -191,14 +193,15 @@ initSecureTempDir() {
 
 verifySecureTempDir() {
     local source reply
+    require 'rayvn/prompt'
     [[ ${generatedTempDir} ]] && source="supplied '${suppliedTempDir}' as root of" || source="system"
     echo
     echo "$(ansi bold Verify configuration)"
     echo
     echo "Using ${source} temp directory: $(ansi blue ${secureTempDir})"
     echo
-    read -t 30 -p "This directory SHOULD be encrypted to avoid leaking sensitive data. $(ansi bold_green Proceed?) [yes/no]: " reply
-    if [[ ${reply,,} != 'yes' ]]; then
+    prompt "This directory SHOULD be encrypted to avoid leaking sensitive data. $(ansi bold_green Proceed?)" yes no reply
+    if [[ ${reply} != 'yes' ]]; then
         echo
         fail "See help for more about this issue: ${scriptName} --help"
     fi
@@ -273,7 +276,7 @@ unlockVault() {
     logoutFromVault force # just in case there is an active session
     declare -gx BW_SESSION
 
-    bw config server "${vaultUrl}" > /dev/null
+    bw config server "${vaultUrl}" &> /dev/null
 
     if [[ ${BW_CLIENTID} ]]; then
 
@@ -338,7 +341,6 @@ backupVault() {
     startSpinner "Backing up vault"
 
     bw export --raw --format json > "${vaultFile}" || failSpin
-
     items="$(bw list items)"
     itemsCount=$(echo "${items}" | jq 'length')
 
@@ -364,6 +366,8 @@ backupVault() {
             (( attachmentsCount++ ))
         done
     done
+pwd # HERE what is wrong with the tar command below? It fails with tar: test-backup-2025-07-31_12.45.05_PDT: Cannot stat: No such file or directory
+declare -p backupName vaultFile
 
     tar cz "${backupName}" | rage ${recipients} > ${backupFile} || failSpin
     local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
@@ -540,7 +544,7 @@ restoreItems() { # STEP 8
         indexedName=$(echo ${newItem} | jq -r '.name')
         name="${indexedName#\<[0-9]*\> }"
 
-        debug ''; debugVars i oldId newId indexedName name
+        debug ''; debugVar i oldId newId indexedName name
 
         # Update newItem
 
@@ -595,10 +599,10 @@ uploadAttachments() { # STEP 10
         pushd "${attachmentDir}" > /dev/null || fail
         local oldAttachmentItemId="$(basename ${attachmentDir})"
         local newAttachmentItemId="${idMapRef[${oldAttachmentItemId}]}"
-        debugVars oldAttachmentItemId newAttachmentItemId
+        debugVar oldAttachmentItemId newAttachmentItemId
 
         for attachmentFile in ./*; do
-            debugVars attachmentFile
+            debugVar attachmentFile
             bw create attachment --file "./${attachmentFile}" --itemid "${newAttachmentItemId}" > /dev/null || fail
         done
         popd > /dev/null || fail
@@ -683,6 +687,6 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up --add 'wardn,valt' 'rayvn/core' 'rayvn/spinner' 'rayvn/debug' 'valt/pinentry'
+source rayvn.up --add 'wardn,valt' 'rayvn/spinner' 'rayvn/debug' 'valt/pinentry'
 
 main "${@}"
