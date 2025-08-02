@@ -79,7 +79,7 @@ init() {
     readonly doneCheck=". ${_greenCheckMark}"
     declare -grx passwordVisibility="${WARDN_PASSWORD_VISIBILITY:-none}"
     declare -g bwPath
-    bwPath=${ which bw; }
+    bwPath=${ which bw || fail "bitwarden client 'bw' not found!"; }
 
     namePrefix="${WARDN_BACKUP_PREFIX}"
     vaultUrl=
@@ -232,7 +232,6 @@ prepareVault() {
         echo "$(ansi bold Create Backup)"
     fi
     echo
-    debugStatus
     if ! useParentSession; then
         ensureLatestCLI
         unlockVault
@@ -366,8 +365,6 @@ backupVault() {
             (( attachmentsCount++ ))
         done
     done
-pwd # HERE what is wrong with the tar command below? It fails with tar: test-backup-2025-07-31_12.45.05_PDT: Cannot stat: No such file or directory
-declare -p backupName vaultFile
 
     tar cz "${backupName}" | rage ${recipients} > ${backupFile} || failSpin
     local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
@@ -584,7 +581,7 @@ addNote() {  # STEP 9
     debugJson note
 
     local temp=$(bw get template item) || fail
-    local key="${restoreNoteName}"
+    local name="${restoreNoteName}"
     local item=$(echo ${temp} | jq -r --arg nm "${name}" --arg nt "${note}" '.type=2 | .secureNote.type=0 | .name=$nm | .notes=$nt')
     echo ${item} | bw encode | bw create item > /dev/null || fail
 }
@@ -628,7 +625,7 @@ assertVaultReady() {
 failVaultNotEmpty() {
     stopSpinner ": $(ansi red vault must be empty before restoring to it.)"
     echo
-    echo "If you are not $(ansi bold_italic sure) that you have a current backup, make another one or restore"
+    echo "If you are $(ansi bold_italic not sure) that you have a current backup, make another one or restore"
     echo "to a new account (with a Premium subscription if you have attachments)."
     echo
     echo "If you choose to empty the target vault:"
@@ -637,7 +634,8 @@ failVaultNotEmpty() {
     echo "  2. In the left pane, under $(ansi bold Settings), click $(ansi bold My Account)."
     echo "  3. In the $(ansi red Danger zone) section, click $(ansi red Purge vault)."
     echo "  4. In the popup, enter you master password and click $(ansi red Purge vault)."
-    fail
+    echo
+    bye
 }
 
 logoutFromVault() {
@@ -687,6 +685,6 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up --add 'wardn,valt' 'rayvn/spinner' 'rayvn/debug' 'valt/pinentry'
+source rayvn.up --add 'wardn,valt' 'rayvn/spinner' 'rayvn/debug' 'valt/pinentry' || exit
 
 main "${@}"
