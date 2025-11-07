@@ -6,22 +6,22 @@
 # shellcheck disable=SC2120
 usage() {
     echo
-    echo "$(ansi bold Create a backup of a Bitwarden vault or restore a vault from one, secured by an) $(ansi cyan Age) $(ansi bold public key pair.)"
+    show bold "Create a backup of a Bitwarden vault or restore a vault from one, secured by an" cyan "Age" plain bold "public key pair."
     echo
-    echo "Usage: $(ansi bold_blue ${scriptName}) [backup] (-r RECIPIENT | -R PATH)... [-b BACKUP_DIR]"
-    echo "       $(ansi bold_blue ${scriptName}) restore BACKUP_FILE -i IDENTITY"
+    show "Usage:" bold blue "${scriptName}" plain "[backup] (-r RECIPIENT | -R PATH)... [-b BACKUP_DIR]"
+    show "      " bold blue "${scriptName}" plain "restore BACKUP_FILE -i IDENTITY"
     echo
     echo "The Bitwarden CLI is used to access the vault. Login/unlock requires user input: credentials are never stored."
     echo "Using an API key simplifies login, requiring only master password input rather than full credentials. This is"
     echo "enabled by setting the BW_CLIENTID and BW_CLIENTSECRET environment variables, for details see"
-    echo "$(ansi blue https://bitwarden.com/help/personal-api-key/)."
+    show blue "https://bitwarden.com/help/personal-api-key/" plain "."
     echo
-    echo "Backup files are encrypted with $(ansi cyan Age) public keys — see $(ansi blue ${rageProjectUrl}) for details on features"   # TODO: valt keys !!!
-    echo "and key creation. In the $(ansi cyan Age) system, a public key is called a 'recipient' and a private key is called an"
-    echo "'identity'. Identities/private keys $(ansi bold_italic should) be protected by a strong password for this use case, and a copy"
-    echo "of both the key and password should be stored offline in $(ansi italic at least) one secure location."
+    show "Backup files are encrypted with" cyan "Age" plain "public keys — see" blue "${rageProjectUrl}" plain "for details on features"   # TODO: valt keys !!!
+    show "and key creation. In the" cyan "Age" plain "system, a public key is called a 'recipient' and a private key is called an"
+    show "'identity'. Identities/private keys" bold italic "should" plain "be protected by a strong password for this use case, and a copy"
+    show "of both the key and password should be stored offline in" italic "at least" plain "one secure location."
     echo
-    echo "$(ansi bold_green Note) A temporary directory is required during both operations, and $(ansi italic unencrypted) vault data will be stored there."
+    show bold green "Note" plain "A temporary directory is required during both operations, and" italic "unencrypted" plain "vault data will be stored there."
     echo "These files will be deleted by this script; however, file recovery software may still be able to read them long"
     echo "afterward. Standard security practice is to use encrypted storage to avoid this risk, so by default you will be"
     echo "prompted to agree that the temp directory is secured. If your system uses whole disk encryption, or if the"
@@ -50,7 +50,7 @@ usage() {
     echo "    WARDN_BACKUP_PREFIX            Set default backup file name prefix."
     echo "    WARDN_RECIPIENT                Set default recipient. May be a path to a recipients file."
     echo "    WARDN_IDENTITY                 Set default identity file."
-    echo "    WARDN_SECURE_TEMP_DIR          Set the default secure temp directory. Use '@' to create a path via $(ansi italic mktemp)."
+    show "    WARDN_SECURE_TEMP_DIR          Set the default secure temp directory. Use '@' to create a path via" italic "mktemp" plain "."
     echo "    WARDN_PASSWORD_VISIBILITY      Set the visibility of password entry characters: none, hide, show. Default: none"
     bye "${@}"
 }
@@ -196,11 +196,11 @@ verifySecureTempDir() {
     require 'rayvn/prompt'
     [[ ${generatedTempDir} ]] && source="supplied '${suppliedTempDir}' as root of" || source="system"
     echo
-    echo "$(ansi bold Verify configuration)"
+    show bold "Verify configuration"
     echo
-    echo "Using ${source} temp directory: $(ansi blue ${secureTempDir})"
+    show "Using ${source} temp directory:" blue "${secureTempDir}"
     echo
-    prompt "This directory SHOULD be encrypted to avoid leaking sensitive data. $(ansi bold_green Proceed?)" yes no reply
+    prompt "This directory SHOULD be encrypted to avoid leaking sensitive data. ${ show bold green "Proceed?" ;}" yes no reply
     if [[ ${reply} != 'yes' ]]; then
         echo
         fail "See help for more about this issue: ${scriptName} --help"
@@ -227,9 +227,9 @@ isEncryptedVolume() {
 prepareVault() {
     echo
     if [[ ${restoreFile} ]]; then
-        echo "$(ansi bold Restore Backup)"
+        show bold "Restore Backup"
     else
-        echo "$(ansi bold Create Backup)"
+        show bold "Create Backup"
     fi
     echo
     if ! useParentSession; then
@@ -256,9 +256,9 @@ ensureLatestCLI() {
     # to be stuck at an older one (e.g. build failures). Since we rely on brew, check
 
     if HOMEBREW_NO_AUTO_UPDATE= brew upgrade --dry-run bitwarden-cli 2>&1 | grep -q "already installed"; then
-        stopSpinner ": $(ansi blue "${bwPath}") is up to date (via brew) at $(bw --version)${doneCheck}"
+        stopSpinner ": ${ show blue "${bwPath}" ;} is up to date (via brew) at $(bw --version)${doneCheck}"
     else
-        stopSpinner ": $(ansi bold_red "${bwPath}" is out of date.)"
+        stopSpinner ": ${ show bold red "${bwPath}" plain "is out of date." ;}"
         echo
         echo "Try executing: HOMEBREW_NO_AUTO_UPDATE= brew upgrade bitwarden-cli"
         bye
@@ -378,7 +378,7 @@ backupVault() {
     fi
     logoutFromVault
     echo
-    echo "$(ansi bold_green Vault backed up to) ${backupFile} $(ansi bold_green size): $(ansi bold ${size})"
+    show bold green "Vault backed up to" plain "${backupFile}" bold green "size:" plain bold "${size}"
 }
 
 restoreVault() {
@@ -489,7 +489,7 @@ restoreVault() {
     logoutFromVault
 
     echo
-    echo "$(ansi bold_green Restore completed.)"
+    show bold green "Restore completed."
     echo
     echo "A note named '${restoreNoteName}' was added to your vault with details of this operation."
     echo
@@ -623,17 +623,17 @@ assertVaultReady() {
 }
 
 failVaultNotEmpty() {
-    stopSpinner ": $(ansi red vault must be empty before restoring to it.)"
+    stopSpinner ": ${ show red "vault must be empty before restoring to it." ;}"
     echo
-    echo "If you are $(ansi bold_italic not sure) that you have a current backup, make another one or restore"
+    show "If you are" bold italic "not sure" plain "that you have a current backup, make another one or restore"
     echo "to a new account (with a Premium subscription if you have attachments)."
     echo
     echo "If you choose to empty the target vault:"
     echo
-    echo "  1. In a browser, login at $(ansi blue ${vaultUrl})."
-    echo "  2. In the left pane, under $(ansi bold Settings), click $(ansi bold My Account)."
-    echo "  3. In the $(ansi red Danger zone) section, click $(ansi red Purge vault)."
-    echo "  4. In the popup, enter you master password and click $(ansi red Purge vault)."
+    show "  1. In a browser, login at" blue "${vaultUrl}" plain "."
+    show "  2. In the left pane, under" bold "Settings" plain ", click" bold "My Account" plain "."
+    show "  3. In the" red "Danger zone" plain "section, click" red "Purge vault" plain "."
+    show "  4. In the popup, enter you master password and click" red "Purge vault" plain "."
     echo
     bye
 }
