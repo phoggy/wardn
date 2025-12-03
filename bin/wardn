@@ -36,7 +36,7 @@ usage() {
     echo "    -b, --backup-dir PATH          Use the secure directory at PATH to store the encrypted backup."
     echo "    -p, --prefix PREFIX            Set a prefix for the backup file name."
     echo "    -u, --url URL                  Set the URL for the Bitwarden server. Defaults to ${defaultServerUrl}"
-    echo "    -i, --identity IDENTITY        Restore using the identity (private key) file at IDENTITY. May be repeated."
+    echo "    -i, --identity-file PATH       Restore using the identity (private key) file at PATH. May be repeated."
     echo "    -l, --login                    Force full login even if API key environment variables are set."
     echo "    -h, --help                     Print this help message and exit."
     echo "    -v                             Print the version and exit."
@@ -89,18 +89,19 @@ init() {
     suppliedTempDir="${WARDN_SECURE_TEMP_DIR}"
     [[ ${suppliedTempDir} && ${suppliedTempDir} != @ ]] && setDirVar suppliedTempDir "${suppliedTempDir}"
 
-    recipients="${WARDN_RECIPIENT}"
-    if [[ ${recipients} ]]; then
-        if [[ -f ${recipients} ]]; then
-            recipients="-R ${recipients}"
+    recipients=()
+    if [[ -n "${WARDN_RECIPIENT}" ]]; then
+        if [[ -f ${WARDN_RECIPIENT} ]]; then
+            recipients=('-R' "${WARDN_RECIPIENT}")
         else
-            recipients="-r ${recipients}"
+            recipients=('-r' "${WARDN_RECIPIENT}")
         fi
     fi
 
-    identities="${WARDN_IDENTITY}"
-    if [[ ${identities} ]]; then
-        assertFile "${identities}"
+    identities=()
+    if [[ -n "${WARDN_IDENTITY}" ]]; then
+        assertFile "${WARDN_IDENTITY}"
+        identities=('-i' "${WARDN_IDENTITY}")
     fi
 
     while (( ${#} > 0 )); do
@@ -108,9 +109,9 @@ init() {
         backup) unset restoreFile ;;
         restore) shift; setFileVar restoreFile "${1}" ;;
         -t | --temp-dir) shift; setDirVar suppliedTempDir "${1}" "secure temp dir path" ;;
-        -r | --recipient) shift; appendVar recipients "-r ${1}" ;;
-        -R | --recipients-file) shift; assertFile "${1}" "recipients file"; appendVar recipients "-R ${1}" ;;
-        -i | --identity) shift; assertFile "${1}" "identities file"; appendVar identities "-i ${1}" ;;
+        -r | --recipient) shift; recipients+=('-r' "${1}") ;;
+        -R | --recipients-file) shift; assertFile "${1}" "recipients file"; recipients+=('-R' "${1}") ;;
+        -i | --identity-file) shift; assertFile "${1}" "identity file"; identities+=('-i' "${1}") ;;
         -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
         -p | --prefix) shift; namePrefix="${1}" ;;
         -u | --url) shift; vaultUrl="${1}" ;;
@@ -142,7 +143,7 @@ init() {
 
         # backup
 
-        [[ ${recipients} ]] || usage "one or more recipients required"
+        (( ${#recipients[@]} )) || usage "one or more recipients required"
         [[ ${namePrefix} ]] || namePrefix="${USER}"
         readonly backupName="${namePrefix}-backup-$(timeStamp)"
 
@@ -155,13 +156,16 @@ init() {
 
         # restore
 
-        [[ ${identities} ]] || fail "one or more identities required"
+        (( ${#identities[@]} )) || usage "one or more identities required"
         readonly backupName="$(basename ${restoreFile} | cut -d'.' -f1-3)"
     fi
 
     addExitHandler cleanup
 
     initSecureTempDir
+#debugVars secureTempDir generatedTempDir  # TODO REMOVE
+#secureTempDir="${HOME}/dev/rayvn/tempdir" # TODO REMOVE
+#debugVars secureTempDir generatedTempDir  # TODO REMOVE
     readonly secureWorkDir="$(makeDir "${secureTempDir}" "${backupName}")"
     readonly vaultFile="${secureWorkDir}/vault.json"
     readonly attachmentsDir="$(makeDir ${secureWorkDir} attachments)"
@@ -225,13 +229,13 @@ isEncryptedVolume() {
 }
 
 prepareVault() {
+    clearTerminal
     echo
     if [[ ${restoreFile} ]]; then
-        show bold "Restore Backup"
+        header 1 "Restore Vault Backup"
     else
-        show bold "Create Backup"
+        header 1 "Create Vault Backup"
     fi
-    echo
     if ! useParentSession; then
         ensureLatestCLI
         unlockVault
@@ -280,7 +284,7 @@ unlockVault() {
     if [[ ${BW_CLIENTID} ]]; then
 
         # Use api key to login
-
+        debug "login with api key"
         bw login --apikey > /dev/null || failSpin "login with api key failed"
 
         # Unlock vault
@@ -291,14 +295,15 @@ unlockVault() {
 
         # Login and unlock without api key
 
+        debug "login with credentials"
         openVault login
     fi
-
-    [[ ${BW_SESSION} ]] || failSpin "unlock failed"
+    [[ -n ${BW_SESSION} ]] || failSpin "unlock failed"
 }
 
 openVault() {
     local command=${1}
+    declare -g BW_SESSION=
     if [[ ${WARDN_DEV_BW_PWD} ]]; then
         useDevPassword ${command}
     else
@@ -310,7 +315,8 @@ useDevPassword() {
     local command=${1}
     debug "useDevPassword ${command}"
     [[ ${command} == login ]] && stopSpinner ". Credentials required..."
-    BW_SESSION="$(bw ${command} --raw --passwordenv WARDN_DEV_BW_PWD)"
+    BW_SESSION="${ bw ${command} --raw --passwordenv WARDN_DEV_BW_PWD 2> "${errorLogFile}"; }"
+    assertNoErrorLog
     [[ ${command} == unlock ]] && stopSpinner "${doneCheck}"
 }
 
@@ -319,7 +325,7 @@ useCredentials() {
     stopSpinner ". Credentials required..."
     debug "useCredentials ${command}"
     for retryIndex in {1..3}; do
-        BW_SESSION="$(bw ${command} --raw)" && break
+        BW_SESSION="${ bw ${command} --raw; }" && break
     done
 }
 
@@ -338,7 +344,6 @@ backupVault() {
     local attachmentsCount
 
     startSpinner "Backing up vault"
-
     bw export --raw --format json > "${vaultFile}" || failSpin
     items="$(bw list items)"
     itemsCount=$(echo "${items}" | jq 'length')
@@ -366,7 +371,8 @@ backupVault() {
         done
     done
 
-    tar cz "${backupName}" | rage ${recipients} > ${backupFile} || failSpin
+    debug "calling tar & rage, recipients=${recipients[*]}"
+    tar cz "${backupName}" | rage "${recipients[@]}" > "${backupFile}" 2> "${errorLogFile}" || assertNoErrorLog failSpin 1
     local size="$(du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1)"
 
     stopSpinner "${doneCheck}"
@@ -434,7 +440,7 @@ restoreVault() {
     echo "Preparing backup. You will be prompted for your private key passphrase if encrypted."
     cd "${secureWorkDir}" || fail
     local tarFile="backup.tar"
-    rage -d ${identities} "${backupFile}" -o "${tarFile}" 2> >(redStream) || fail
+    rage -d "${identities[@]}" "${backupFile}" -o "${tarFile}" 2> >(redStream) || fail
 
     startSpinner "Preparing import" # don't start until here, since the above will likely prompt for a password
     tar -xf "${tarFile}" --strip-components=1 || fail
@@ -541,7 +547,7 @@ restoreItems() { # STEP 8
         indexedName=$(echo ${newItem} | jq -r '.name')
         name="${indexedName#\<[0-9]*\> }"
 
-        debug ''; debugVar i oldId newId indexedName name
+        debug ''; debugVars i oldId newId indexedName name
 
         # Update newItem
 
@@ -596,10 +602,10 @@ uploadAttachments() { # STEP 10
         pushd "${attachmentDir}" > /dev/null || fail
         local oldAttachmentItemId="$(basename ${attachmentDir})"
         local newAttachmentItemId="${idMapRef[${oldAttachmentItemId}]}"
-        debugVar oldAttachmentItemId newAttachmentItemId
+        debugVars oldAttachmentItemId newAttachmentItemId
 
         for attachmentFile in ./*; do
-            debugVar attachmentFile
+            debugVars attachmentFile
             bw create attachment --file "./${attachmentFile}" --itemid "${newAttachmentItemId}" > /dev/null || fail
         done
         popd > /dev/null || fail
@@ -685,6 +691,6 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up --add 'wardn,valt' 'rayvn/spinner' 'rayvn/debug' 'valt/pinentry' || exit
+source rayvn.up --add 'wardn,valt' 'rayvn/spinner' 'rayvn/terminal' 'valt/pinentry' || exit
 
 main "${@}"
