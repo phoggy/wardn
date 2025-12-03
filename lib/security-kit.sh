@@ -11,10 +11,10 @@ require 'rayvn/core'
 generateSecurityKit() {
     _initSecurityKit
     local json="${securityKitJson}"
-    local jsonFile="$(tempDirPath form.json)"
+    local jsonFile="${ tempDirPath form.json; }"
     local newPdfFile="bitwarden-security-kit.pdf"
 
-    _setSecurityKitFieldValue json 'last-updated-date' "$(date '+%B %-d, %Y')"
+    _setSecurityKitFieldValue json 'last-updated-date' "${ date '+%B %-d, %Y'; }"
     _setSecurityKitFieldValue json 'bw-vault-url' "${vaultUrl}"   # TODO assume, or pass in?
 
     _getSecurityKitFieldValue json 'last-updated-date'
@@ -37,7 +37,7 @@ _initSecurityKit() {
         local basePath="${wardnHome}/etc/bw-security-kit"
 
         declare -gr securityKitPdfFile="${basePath}.pdf"
-        declare -gr securityKitJson="$( < "${basePath}.json")"
+        declare -gr securityKitJson="${ < "${basePath}.json"; }"
     fi
 }
 
@@ -48,10 +48,10 @@ _getSecurityKitFieldValue() {
     [[ -z ${fieldId} ]] && fail "Unknown field key: ${fieldKey}"
 
     local result
-    result=$(jq -er '
+    result="${ jq -er '
         .forms[0].textfield[]?, .forms[0].checkbox[]?
         | select(.id == "'"${fieldId}"'")
-        | .value' <<< "${jsonVar}") || fail "Field ID ${fieldId} (${fieldKey}) not found in JSON"
+        | .value' <<< "${jsonVar}"; }" || fail "Field ID ${fieldId} (${fieldKey}) not found in JSON"
 
     echo "${result}"
 }
@@ -69,15 +69,15 @@ _setSecurityKitFieldValue() {
         | select(.id == $id)' <<< "${jsonVar}" > /dev/null \
         || fail "Field ID ${fieldId} (${fieldKey}) not found in JSON"
 
-    jsonVar=$(jq \
+    jsonVar="${ jq \
         --arg id "${fieldId}" \
-        --argjson isBool "$( [[ ${newValue} == true || ${newValue} == false ]] && echo true || echo false )" \
+        --argjson isBool "${ [[ ${newValue} == true || ${newValue} == false ]] && echo true || echo false; }" \
         --arg value "${newValue}" '
         (.forms[0].textfield[]?, .forms[0].checkbox[]?
         | select(.id == $id)
         | .value) = (
             if $isBool then ($value | test("true")) else $value end
-        )' <<< "${jsonVar}") || fail "Failed to update field '${fieldKey}'"
+        )' <<< "${jsonVar}"; }" || fail "Failed to update field '${fieldKey}'"
 }
 
 # Name to id mapping. Ugh. Would be far less fragile if the field names corresponded
