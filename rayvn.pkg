@@ -30,6 +30,11 @@ declare -gA projectDependencies=(
     [jq_extract]=4
     [jq_brew]=true
     [jq_url]='https://jqlang.org/'
+
+    [pdfcpu_min]='0.10.2'
+    [pdfcpu_extract]=1
+    [pdfcpu_brew]=true
+    [pdfcpu_url]='https://github.com/pdfcpu/pdfcpu'
 )
 
 
