@@ -267,16 +267,20 @@ useParentSession() {
 ensureLatestCLI() {
     startSpinner "Checking Bitwarden CLI version"
 
-    # The bw update command may say there is a new version, but it is possible for the brew formula
-    # to be stuck at an older one (e.g. build failures). Since we rely on brew, check
-
-    if HOMEBREW_NO_AUTO_UPDATE= brew upgrade --dry-run bitwarden-cli 2>&1 | grep -q "already installed"; then
-        stopSpinner ": ${ show blue "${bwPath}" ;} is up to date (via brew) at ${ bw --version; }${doneCheck}"
+    if [[ ${wardnHome:-} == /nix/store/* ]]; then
+        # Under Nix, the version is pinned by flake.lock
+        stopSpinner ": ${ show blue "${bwPath}" ;} at ${ bw --version; } (Nix)${doneCheck}"
+    elif command -v brew &> /dev/null; then
+        if HOMEBREW_NO_AUTO_UPDATE= brew upgrade --dry-run bitwarden-cli 2>&1 | grep -q "already installed"; then
+            stopSpinner ": ${ show blue "${bwPath}" ;} is up to date (via brew) at ${ bw --version; }${doneCheck}"
+        else
+            stopSpinner ": ${ show bold red "${bwPath}" plain "is out of date." ;}"
+            echo
+            echo "Try executing: HOMEBREW_NO_AUTO_UPDATE= brew upgrade bitwarden-cli"
+            bye
+        fi
     else
-        stopSpinner ": ${ show bold red "${bwPath}" plain "is out of date." ;}"
-        echo
-        echo "Try executing: HOMEBREW_NO_AUTO_UPDATE= brew upgrade bitwarden-cli"
-        bye
+        stopSpinner ": ${ show blue "${bwPath}" ;} at ${ bw --version; }${doneCheck}"
     fi
 }
 

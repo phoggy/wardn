@@ -16,15 +16,19 @@
         valtPkg = valt.packages.${system}.default;
 
         # Runtime dependencies
+        # bitwarden-cli fails to build in Nix sandbox on macOS (needs xcodebuild
+        # for native node modules). On macOS it falls through to system PATH.
+        # On Linux the Nix-managed version is used for full reproducibility.
         runtimeDeps = [
           pkgs.bash
           rayvnPkg
           valtPkg
-          pkgs.bitwarden-cli
           pkgs.jq
           pkgs.rage
           pkgs.pdfcpu
           pkgs.curl
+        ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+          pkgs.bitwarden-cli
         ];
 
         wardn = pkgs.stdenv.mkDerivation {
@@ -53,9 +57,11 @@
             # Install rayvn.pkg
             cp rayvn.pkg "$out/"
 
-            # Wrap wardn with runtime dependencies on PATH
+            # Wrap wardn with runtime dependencies on PATH.
+            # Include $out/bin so rayvn.up can find 'rayvn.up' and 'wardn' via
+            # PATH lookup for project root resolution.
             wrapProgram "$out/bin/wardn" \
-              --prefix PATH : "${pkgs.lib.makeBinPath runtimeDeps}"
+              --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath runtimeDeps}"
 
             runHook postInstall
           '';
@@ -94,11 +100,14 @@
 
             cp rayvn.pkg "$out/"
 
-            # Wrap with restore-focused deps
+            # Wrap with restore-focused deps.
+            # Include $out/bin for rayvn.up project root resolution.
             wrapProgram "$out/bin/wardn" \
-              --prefix PATH : "${pkgs.lib.makeBinPath [
-                pkgs.bash rayvnPkg valtPkg pkgs.bitwarden-cli pkgs.jq pkgs.rage pkgs.curl
-              ]}"
+              --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath ([
+                pkgs.bash rayvnPkg valtPkg pkgs.jq pkgs.rage pkgs.curl
+              ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+                pkgs.bitwarden-cli
+              ])}"
 
             runHook postInstall
           '';
