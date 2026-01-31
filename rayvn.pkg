@@ -5,36 +5,3 @@
 projectName='wardn'
 projectVersion='0.1.0'
 projectReleaseDate=''
-
-declare -gA projectDependencies=(
-
-    [rayvn_min]='0.1.2'
-    [rayvn_extract]=1
-    [rayvn_brew]=true
-    [rayvn_brew_tap]='phoggy/rayvn'
-    [rayvn_url]='https://github.com/phoggy/rayvn'
-
-    [valt_min]='0.1.0'
-    [valt_extract]=1
-    [valt_brew]=true
-    [valt_brew_tap]='phoggy/valt'
-    [valt_url]='https://github.com/phoggy/valt'
-
-    [bw_min]='2025.2.0'
-    [bw_brew_name]='bitwarden-cli'
-    [bw_extract]=1
-    [bw_brew]=true
-    [bw_url]='https://bitwarden.com/help/cli/'
-
-    [jq_min]='1.7.1'
-    [jq_extract]=4
-    [jq_brew]=true
-    [jq_url]='https://jqlang.org/'
-
-    [pdfcpu_min]='0.10.2'
-    [pdfcpu_extract]=1
-    [pdfcpu_brew]=true
-    [pdfcpu_url]='https://github.com/pdfcpu/pdfcpu'
-)
-
-
