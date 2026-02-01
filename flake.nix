@@ -66,6 +66,17 @@
             runHook postInstall
           '';
 
+          # patchShebangs rewrites #!/usr/bin/env bash to the non-interactive
+          # bash, which lacks builtins like compgen. Restore the shebangs so
+          # they resolve via PATH, where the wrapper provides bash-interactive.
+          postFixup = ''
+            for f in "$out/bin/.wardn-wrapped" "$out/lib/"*.sh; do
+              if [ -f "$f" ]; then
+                sed -i "1s|^#\\!.*/bin/bash.*|#!/usr/bin/env bash|" "$f"
+              fi
+            done
+          '';
+
           meta = with pkgs.lib; {
             description = "Encrypted Bitwarden vault backup and restore using Age encryption";
             homepage = "https://github.com/phoggy/wardn";
@@ -110,6 +121,14 @@
               ])}"
 
             runHook postInstall
+          '';
+
+          postFixup = ''
+            for f in "$out/bin/.wardn-wrapped" "$out/lib/"*.sh; do
+              if [ -f "$f" ]; then
+                sed -i "1s|^#\\!.*/bin/bash.*|#!/usr/bin/env bash|" "$f"
+              fi
+            done
           '';
 
           meta = with pkgs.lib; {
