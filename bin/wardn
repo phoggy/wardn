@@ -78,8 +78,6 @@ init() {
     readonly restoreNoteName='🔥 Restored Vault'
     readonly doneCheck=". ${_greenCheckMark}"
     declare -grx passwordVisibility="${WARDN_PASSWORD_VISIBILITY:-none}"
-    declare -g bwPath
-    bwPath=${ which bw || fail "bitwarden client 'bw' not found!"; }
 
     namePrefix="${WARDN_BACKUP_PREFIX}"
     vaultUrl=
@@ -106,25 +104,25 @@ init() {
 
     while (( ${#} > 0 )); do
         case "${1}" in
-        backup) unset restoreFile ;;
-        restore) shift; setFileVar restoreFile "${1}" ;;
-        -t | --temp-dir) shift; setDirVar suppliedTempDir "${1}" "secure temp dir path" ;;
-        -r | --recipient) shift; recipients+=('-r' "${1}") ;;
-        -R | --recipients-file) shift; assertFile "${1}" "recipients file"; recipients+=('-R' "${1}") ;;
-        -i | --identity-file) shift; assertFile "${1}" "identity file"; identities+=('-i' "${1}") ;;
-        -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
-        -p | --prefix) shift; namePrefix="${1}" ;;
-        -u | --url) shift; vaultUrl="${1}" ;;
-        -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION WARDN_DEV_BW_PWD ;;
-        --update) updateCLI; exit 0 ;;
-        --debug) setDebug showOnExit ;;
-        --debug-new) setDebug clearLog showOnExit ;;
-        --debug-out) setDebug tty "${ tty; }" ;;
-        --debug-tty) shift; setDebug tty "${1}" ;;
-        -h | --help) usage ;;
-        -v) projectVersion wardn; exit 0 ;;
-        --version) projectVersion wardn true; exit 0 ;;
-        *) usage "Unknown argument: ${1}" ;;
+            backup) unset restoreFile ;;
+            restore) shift; setFileVar restoreFile "${1}" ;;
+            -t | --temp-dir) shift; setDirVar suppliedTempDir "${1}" "secure temp dir path" ;;
+            -r | --recipient) shift; recipients+=('-r' "${1}") ;;
+            -R | --recipients-file) shift; assertFile "${1}" "recipients file"; recipients+=('-R' "${1}") ;;
+            -i | --identity-file) shift; assertFile "${1}" "identity file"; identities+=('-i' "${1}") ;;
+            -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
+            -p | --prefix) shift; namePrefix="${1}" ;;
+            -u | --url) shift; vaultUrl="${1}" ;;
+            -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION WARDN_DEV_BW_PWD ;;
+            --update) updateCLI; exit 0 ;;
+            --debug) setDebug showOnExit ;;
+            --debug-new) setDebug clearLog showOnExit ;;
+            --debug-out) setDebug tty "${ tty; }" ;;
+            --debug-tty) shift; setDebug tty "${1}" ;;
+            -h | --help) usage ;;
+            -v) projectVersion wardn; exit 0 ;;
+            --version) projectVersion wardn true; exit 0 ;;
+            *) usage "Unknown argument: ${1}" ;;
         esac
         shift
     done
@@ -163,9 +161,6 @@ init() {
     addExitHandler cleanup
 
     initSecureTempDir
-#debugVars secureTempDir generatedTempDir  # TODO REMOVE
-#secureTempDir="${HOME}/dev/rayvn/tempdir" # TODO REMOVE
-#debugVars secureTempDir generatedTempDir  # TODO REMOVE
     readonly secureWorkDir="${ makeDir "${secureTempDir}" "${backupName}"; }"
     readonly vaultFile="${secureWorkDir}/vault.json"
     readonly attachmentsDir="${ makeDir ${secureWorkDir} attachments; }"
@@ -265,18 +260,21 @@ useParentSession() {
 }
 
 ensureLatestCLI() {
+    local bwPath
+    bwPath=${ binaryPath bw "bitwarden client 'bw' not found!"; }
+
     startSpinner "Checking Bitwarden CLI version"
 
     if (( inNix )); then
         # Under Nix, the version is pinned by flake.lock
         stopSpinner ": ${ show blue "${bwPath}" ;} at ${ bw --version; } (Nix)${doneCheck}"
     elif command -v brew &> /dev/null; then
-        if HOMEBREW_NO_AUTO_UPDATE= brew upgrade --dry-run bitwarden-cli 2>&1 | grep -q "already installed"; then
+        if HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade --dry-run bitwarden-cli 2>&1 | grep -q "already installed"; then
             stopSpinner ": ${ show blue "${bwPath}" ;} is up to date (via brew) at ${ bw --version; }${doneCheck}"
         else
             stopSpinner ": ${ show bold red "${bwPath}" plain "is out of date." ;}"
             echo
-            echo "Try executing: HOMEBREW_NO_AUTO_UPDATE= brew upgrade bitwarden-cli"
+            echo "Try executing: HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade bitwarden-cli"
             bye
         fi
     else
