@@ -37,6 +37,18 @@ echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
 nix profile add github:phoggy/wardn
 ```
 
+To install a specific version:
+
+```bash
+nix profile add github:phoggy/wardn/v0.1.1
+```
+
+To upgrade to the latest version:
+
+```bash
+nix profile upgrade wardn
+```
+
 To run without installing:
 
 ```bash
