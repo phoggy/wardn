@@ -54,8 +54,18 @@
             mkdir -p "$out/share/wardn/etc"
             cp -r etc/* "$out/share/wardn/etc/"
 
-            # Install rayvn.pkg
-            cp rayvn.pkg "$out/share/wardn/"
+            # Install rayvn.pkg with version metadata
+            sed '/^projectVersion=/d; /^projectReleaseDate=/d; /^projectFlake=/d; /^projectBuildRev=/d; /^projectNixpkgsRev=/d' \
+                rayvn.pkg > "$out/share/wardn/rayvn.pkg"
+            cat >> "$out/share/wardn/rayvn.pkg" <<EOF
+
+# Version metadata (added by Nix build)
+projectVersion='$version'
+projectReleaseDate='$(date "+%Y-%m-%d %H:%M:%S %Z")'
+projectFlake='github:phoggy/wardn/v$version'
+projectBuildRev='${self.shortRev or "dev"}'
+projectNixpkgsRev='${nixpkgs.shortRev}'
+EOF
 
             # Wrap wardn with runtime dependencies on PATH.
             # Include $out/bin so rayvn.up can find 'rayvn.up' and 'wardn' via
@@ -109,7 +119,18 @@
             mkdir -p "$out/share/wardn/etc"
             cp -r etc/* "$out/share/wardn/etc/"
 
-            cp rayvn.pkg "$out/share/wardn/"
+            # Install rayvn.pkg with version metadata
+            sed '/^projectVersion=/d; /^projectReleaseDate=/d; /^projectFlake=/d; /^projectBuildRev=/d; /^projectNixpkgsRev=/d' \
+                rayvn.pkg > "$out/share/wardn/rayvn.pkg"
+            cat >> "$out/share/wardn/rayvn.pkg" <<EOF
+
+# Version metadata (added by Nix build)
+projectVersion='$version'
+projectReleaseDate='$(date "+%Y-%m-%d %H:%M:%S %Z")'
+projectFlake='github:phoggy/wardn/v$version'
+projectBuildRev='${self.shortRev or "dev"}'
+projectNixpkgsRev='${nixpkgs.shortRev}'
+EOF
 
             # Wrap with restore-focused deps.
             # Include $out/bin for rayvn.up project root resolution.
