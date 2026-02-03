@@ -267,7 +267,7 @@ useParentSession() {
 ensureLatestCLI() {
     startSpinner "Checking Bitwarden CLI version"
 
-    if [[ ${wardnHome:-} == /nix/store/* ]]; then
+    if (( inNix )); then
         # Under Nix, the version is pinned by flake.lock
         stopSpinner ": ${ show blue "${bwPath}" ;} at ${ bw --version; } (Nix)${doneCheck}"
     elif command -v brew &> /dev/null; then

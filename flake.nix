@@ -47,15 +47,15 @@
             install -Dm755 bin/wardn "$out/bin/wardn"
 
             # Install lib/
-            mkdir -p "$out/lib"
-            cp lib/*.sh "$out/lib/"
+            mkdir -p "$out/share/wardn/lib"
+            cp lib/*.sh "$out/share/wardn/lib/"
 
             # Install etc/
-            mkdir -p "$out/etc"
-            cp -r etc/* "$out/etc/"
+            mkdir -p "$out/share/wardn/etc"
+            cp -r etc/* "$out/share/wardn/etc/"
 
             # Install rayvn.pkg
-            cp rayvn.pkg "$out/"
+            cp rayvn.pkg "$out/share/wardn/"
 
             # Wrap wardn with runtime dependencies on PATH.
             # Include $out/bin so rayvn.up can find 'rayvn.up' and 'wardn' via
@@ -70,7 +70,7 @@
           # bash, which lacks builtins like compgen. Restore the shebangs so
           # they resolve via PATH, where the wrapper provides bash-interactive.
           postFixup = ''
-            for f in "$out/bin/.wardn-wrapped" "$out/lib/"*.sh; do
+            for f in "$out/bin/.wardn-wrapped" "$out/share/wardn/lib/"*.sh; do
               if [ -f "$f" ]; then
                 sed -i "1s|^#\\!.*/bin/bash.*|#!/usr/bin/env bash|" "$f"
               fi
@@ -102,14 +102,14 @@
             install -Dm755 bin/wardn "$out/bin/wardn"
 
             # Install lib/
-            mkdir -p "$out/lib"
-            cp lib/*.sh "$out/lib/"
+            mkdir -p "$out/share/wardn/lib"
+            cp lib/*.sh "$out/share/wardn/lib/"
 
             # Install etc/
-            mkdir -p "$out/etc"
-            cp -r etc/* "$out/etc/"
+            mkdir -p "$out/share/wardn/etc"
+            cp -r etc/* "$out/share/wardn/etc/"
 
-            cp rayvn.pkg "$out/"
+            cp rayvn.pkg "$out/share/wardn/"
 
             # Wrap with restore-focused deps.
             # Include $out/bin for rayvn.up project root resolution.
@@ -124,7 +124,7 @@
           '';
 
           postFixup = ''
-            for f in "$out/bin/.wardn-wrapped" "$out/lib/"*.sh; do
+            for f in "$out/bin/.wardn-wrapped" "$out/share/wardn/lib/"*.sh; do
               if [ -f "$f" ]; then
                 sed -i "1s|^#\\!.*/bin/bash.*|#!/usr/bin/env bash|" "$f"
               fi
