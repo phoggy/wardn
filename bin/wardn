@@ -298,7 +298,7 @@ unlockVault() {
 
         # Use api key to login
         debug "login with api key"
-        bw login --apikey > /dev/null || failSpin "login with api key failed"
+        bw login --apikey > /dev/null || fail "login with api key failed"
 
         # Unlock vault
 
@@ -311,7 +311,7 @@ unlockVault() {
         debug "login with credentials"
         openVault login
     fi
-    [[ -n ${BW_SESSION} ]] || failSpin "unlock failed"
+    [[ -n ${BW_SESSION} ]] || fail "unlock failed"
 }
 
 openVault() {
@@ -357,7 +357,7 @@ backupVault() {
     local attachmentsCount
 
     startSpinner "Backing up vault"
-    bw export --raw --format json > "${vaultFile}" || failSpin
+    bw export --raw --format json > "${vaultFile}" || fail
     items="${ bw list items; }"
     itemsCount="${ echo "${items}" | jq 'length'; }"
 
@@ -378,14 +378,14 @@ backupVault() {
             # get attachment
 
             bw get attachment "${attachmentId}" --itemid "${attachmentItemId}" \
-                --output "${attachDir}/${fileName}" >/dev/null 2>&1 || failSpin
+                --output "${attachDir}/${fileName}" >/dev/null 2>&1 || fail
 
             (( attachmentsCount++ ))
         done
     done
 
     debug "calling tar & rage, recipients=${recipients[*]}"
-    tar cz "${backupName}" | rage "${recipients[@]}" > "${backupFile}" 2> "${errorLogFile}" || assertNoErrorLog failSpin 1
+    tar cz "${backupName}" | rage "${recipients[@]}" > "${backupFile}" 2> "${errorLogFile}" || assertNoErrorLog true
     local size="${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }"
 
     stopSpinner "${doneCheck}"
@@ -631,7 +631,7 @@ assertVaultReady() {
     local vault="${ bw export --raw --format json; }"
 
     local orgVault="${ echo "${vault}" | jq '.collections != null' | grep true; }"
-    [[ ${orgVault} ]] && failSpin "Cannot restore to an Organization vault (yet)."
+    [[ ${orgVault} ]] && fail "Cannot restore to an Organization vault (yet)."
 
     local itemsCount="${ echo "${vault}" | jq '.items // 0 | length'; }"
     (( itemsCount == 0 )) || failVaultNotEmpty
