@@ -328,8 +328,7 @@ useDevPassword() {
     local command=${1}
     debug "useDevPassword ${command}"
     [[ ${command} == login ]] && stopSpinner ". Credentials required..."
-    BW_SESSION="${ bw ${command} --raw --passwordenv WARDN_DEV_BW_PWD 2> "${errorLogFile}"; }"
-    assertNoErrorLog
+    BW_SESSION="${ assertCommand --stderr --error "Failed to ${command} vault" bw ${command} --raw --passwordenv WARDN_DEV_BW_PWD; }"
     [[ ${command} == unlock ]] && stopSpinner "${doneCheck}"
 }
 
@@ -385,7 +384,8 @@ backupVault() {
     done
 
     debug "calling tar & rage, recipients=${recipients[*]}"
-    tar cz "${backupName}" | rage "${recipients[@]}" > "${backupFile}" 2> "${errorLogFile}" || assertNoErrorLog true
+    assertCommand --stderr --strip-brackets --error "Failed to encrypt backup" \
+        eval 'tar cz "${backupName}" | rage "${recipients[@]}" > "${backupFile}"'
     local size="${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }"
 
     stopSpinner "${doneCheck}"
