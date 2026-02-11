@@ -188,7 +188,7 @@ EOF
           ];
           shellHook = ''
             export PATH="${self}/bin:$PATH"
-            echo "wardn dev shell ready"
+            [[ $- == *i* ]] && echo "wardn dev shell ready"
           '';
         };
       }
