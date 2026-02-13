@@ -670,9 +670,6 @@ logoutFromVault() {
 
 cleanup() {
     logoutFromVault
-
-    [[ ${debug} ]] && exec 3<&- # close file descriptor
-
     if [[ ${generatedTempDir} ]]; then
         rm -rf "${generatedTempDir}" > /dev/null 2>&1 || warn "Failed to delete temp dir: ${generatedTempDir}"
     fi
