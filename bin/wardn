@@ -260,25 +260,25 @@ useParentSession() {
 }
 
 ensureLatestCLI() {
-    local bwPath
+    local bwPath spinnerId
     bwPath=${ binaryPath bw "bitwarden client 'bw' not found!"; }
 
-    startSpinner "Checking Bitwarden CLI version"
+    startSpinner spinnerId "Checking Bitwarden CLI version"
 
     if (( inNix )); then
         # Under Nix, the version is pinned by flake.lock
-        stopSpinner ": ${ show blue "${bwPath}" ;} at ${ bw --version; } (Nix)${doneCheck}"
+        stopSpinner spinnerId ": ${ show blue "${bwPath}" ;} at ${ bw --version; } (Nix)${doneCheck}"
     elif command -v brew &> /dev/null; then
         if HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade --dry-run bitwarden-cli 2>&1 | grep -q "already installed"; then
-            stopSpinner ": ${ show blue "${bwPath}" ;} is up to date (via brew) at ${ bw --version; }${doneCheck}"
+            stopSpinner spinnerId ": ${ show blue "${bwPath}" ;} is up to date (via brew) at ${ bw --version; }${doneCheck}"
         else
-            stopSpinner ": ${ show bold red "${bwPath}" plain "is out of date." ;}"
+            stopSpinner spinnerId ": ${ show bold red "${bwPath}" plain "is out of date." ;}"
             echo
             echo "Try executing: HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade bitwarden-cli"
             bye
         fi
     else
-        stopSpinner ": ${ show blue "${bwPath}" ;} at ${ bw --version; }${doneCheck}"
+        stopSpinner spinnerId ": ${ show blue "${bwPath}" ;} at ${ bw --version; }${doneCheck}"
     fi
 }
 
@@ -287,7 +287,8 @@ sessionStatus() {
 }
 
 unlockVault() {
-    startSpinner "Unlocking vault"
+    local spinnerId
+    startSpinner spinnerId "Unlocking vault"
 
     logoutFromVault force # just in case there is an active session
     declare -gx BW_SESSION
@@ -327,14 +328,14 @@ openVault() {
 useDevPassword() {
     local command=${1}
     debug "useDevPassword ${command}"
-    [[ ${command} == login ]] && stopSpinner ". Credentials required..."
+    [[ ${command} == login ]] && stopSpinner spinnerId ". Credentials required..."
     BW_SESSION="${ assertCommand --stderr --error "Failed to ${command} vault" bw ${command} --raw --passwordenv WARDN_DEV_BW_PWD; }"
-    [[ ${command} == unlock ]] && stopSpinner "${doneCheck}"
+    [[ ${command} == unlock ]] && stopSpinner spinnerId "${doneCheck}"
 }
 
 useCredentials() {
     local command=${1}
-    stopSpinner ". Credentials required..."
+    stopSpinner spinnerId ". Credentials required..."
     debug "useCredentials ${command}"
     for retryIndex in {1..3}; do
         BW_SESSION="${ bw ${command} --raw; }" && break
@@ -342,9 +343,10 @@ useCredentials() {
 }
 
 syncVault() {
-    startSpinner "Syncing vault"
+    local spinnerId
+    startSpinner spinnerId "Syncing vault"
     bw sync > /dev/null || fail
-    stopSpinner "${doneCheck}"
+    stopSpinner spinnerId "${doneCheck}"
 }
 
 backupVault() {
@@ -354,8 +356,9 @@ backupVault() {
     local attachDir
     local itemsCount
     local attachmentsCount
+    local spinnerId
 
-    startSpinner "Backing up vault"
+    startSpinner spinnerId "Backing up vault"
     bw export --raw --format json > "${vaultFile}" || fail
     items="${ bw list items; }"
     itemsCount="${ echo "${items}" | jq 'length'; }"
@@ -388,7 +391,7 @@ backupVault() {
         eval 'tar cz "${backupName}" | rage "${recipients[@]}" > "${backupFile}"'
     local size="${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }"
 
-    stopSpinner "${doneCheck}"
+    stopSpinner spinnerId "${doneCheck}"
 
     if (( attachmentsCount > 0 )); then
         echo "Backed up ${itemsCount} items and ${attachmentsCount} attachments. ${_greenCheckMark}"
@@ -455,7 +458,8 @@ restoreVault() {
     local tarFile="backup.tar"
     rage -d "${identities[@]}" "${backupFile}" -o "${tarFile}" 2> >(redStream) || fail
 
-    startSpinner "Preparing import" # don't start until here, since the above will likely prompt for a password
+    local spinnerId
+    startSpinner spinnerId "Preparing import" # don't start until here, since the above will likely prompt for a password
     tar -xf "${tarFile}" --strip-components=1 || fail
     rm "${tarFile}" || fail
 
@@ -478,7 +482,8 @@ restoreVault() {
 
     # Import updated vault (STEP 6)
 
-    restartSpinner "${doneCheck}" "Importing vault"
+    stopSpinner spinnerId "${doneCheck}"
+    startSpinner spinnerId "Importing vault"
     echo "${oldVault}" > "${importVaultFileName}"
     bw import bitwardenjson "./${importVaultFileName}" > /dev/null || fail
 
@@ -489,7 +494,9 @@ restoreVault() {
     # Edit each item in the new vault to fix name and copy old dates, building idMap (STEP 8)
 
     local suffix="${ (( itemsCount < 10 )) && echo '' || echo ' (this may take some time)'; }"
-    restartSpinner "${doneCheck}" "Restoring ${itemsCount} items${suffix}"
+
+    stopSpinner spinnerId "${doneCheck}"
+    startSpinner spinnerId "Restoring ${itemsCount} items${suffix}"
     restoreItems oldVault newVault oldIds idMap ${itemsCount}
 
     # Add a note (STEP 9)
@@ -499,11 +506,12 @@ restoreVault() {
     # Process attachments if we have any (STEP 10)
 
     if (( ${attachmentsCount} > 0 )); then
-        restartSpinner "${doneCheck}" "Uploading ${attachmentsCount} attachments"
+        stopSpinner spinnerId "${doneCheck}" "Uploading ${attachmentsCount} attachments"
+        startSpinner spinnerId "Uploading ${attachmentsCount} attachments"
         uploadAttachments idMap
     fi
 
-    stopSpinner "${doneCheck}"
+    stopSpinner spinnerId "${doneCheck}"
 
     logoutFromVault
 
@@ -626,7 +634,8 @@ uploadAttachments() { # STEP 10
 }
 
 assertVaultReady() {
-    startSpinner "Checking vault"
+    local spinnerId
+    startSpinner spinnerId "Checking vault"
 
     local vault="${ bw export --raw --format json; }"
 
@@ -638,11 +647,11 @@ assertVaultReady() {
 
     local foldersCount="${ echo "${vault}" | jq '.folders // 0 | length'; }"
     (( foldersCount == 0 )) || failVaultNotEmpty
-    stopSpinner "${doneCheck}"
+    stopSpinner spinnerId "${doneCheck}"
 }
 
 failVaultNotEmpty() {
-    stopSpinner ": ${ show red "vault must be empty before restoring to it." ;}"
+    stopSpinner spinnerId ": ${ show red "vault must be empty before restoring to it." ;}"
     echo
     show "If you are" bold italic "not sure" plain "that you have a current backup, make another one or restore"
     echo "to a new account (with a Premium subscription if you have attachments)."
