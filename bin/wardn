@@ -482,8 +482,7 @@ restoreVault() {
 
     # Import updated vault (STEP 6)
 
-    stopSpinner spinnerId "${doneCheck}"
-    startSpinner spinnerId "Importing vault"
+    nextSpinner spinnerId "${doneCheck}" "Importing vault"
     echo "${oldVault}" > "${importVaultFileName}"
     bw import bitwardenjson "./${importVaultFileName}" > /dev/null || fail
 
@@ -495,8 +494,7 @@ restoreVault() {
 
     local suffix="${ (( itemsCount < 10 )) && echo '' || echo ' (this may take some time)'; }"
 
-    stopSpinner spinnerId "${doneCheck}"
-    startSpinner spinnerId "Restoring ${itemsCount} items${suffix}"
+    nextSpinner spinnerId "${doneCheck}" "Restoring ${itemsCount} items${suffix}"
     restoreItems oldVault newVault oldIds idMap ${itemsCount}
 
     # Add a note (STEP 9)
@@ -506,8 +504,7 @@ restoreVault() {
     # Process attachments if we have any (STEP 10)
 
     if (( ${attachmentsCount} > 0 )); then
-        stopSpinner spinnerId "${doneCheck}" "Uploading ${attachmentsCount} attachments"
-        startSpinner spinnerId "Uploading ${attachmentsCount} attachments"
+        nextSpinner spinnerId "${doneCheck}" "Uploading ${attachmentsCount} attachments"
         uploadAttachments idMap
     fi
 
@@ -522,6 +519,12 @@ restoreVault() {
     echo
     suffix="${ (( attachmentsCount > 0 )) && echo ' and attachments.' || echo '.'; }"
     echo "You will likely need to logout/login to see all restored items${suffix}"
+}
+
+nextSpinner() {
+    local idVarName=$1 replacement="$2" message="$3"
+    stopSpinner ${idVarName} "${replacement}"
+    startSpinner ${idVarName} "${message}"
 }
 
 prefixNamesWithIndex() {   # STEP 4
