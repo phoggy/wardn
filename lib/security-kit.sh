@@ -8,6 +8,7 @@ require 'rayvn/core'
 # TODO: This is just a placeholder/test for now. How do get and securely keep
 #       a filled out version that we can update as needed?
 
+# Fill in and open the Bitwarden security readiness kit PDF with current vault data.
 generateSecurityKit() {
     _initSecurityKit
     local json="${securityKitJson}"
