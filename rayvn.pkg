@@ -3,3 +3,4 @@
 projectName='wardn'
 projectVersion='0.1.1+'
 projectReleaseDate=''
+docsWorktree='../wardn-pages'
