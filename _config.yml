@@ -1,0 +1,16 @@
+title: wardn
+description: Encrypted Bitwarden vault backups
+theme: just-the-docs
+url: https://rayvn.ink
+baseurl: /wardn
+
+nav_external_links:
+  - title: GitHub
+    url: https://github.com/phoggy/wardn
+  - title: rayvn docs
+    url: /rayvn
+  - title: valt docs
+    url: /valt
+
+aux_links:
+  "rayvn.ink": "/"
