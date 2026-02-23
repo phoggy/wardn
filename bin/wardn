@@ -158,6 +158,8 @@ init() {
         readonly backupName="${ basename ${restoreFile} | cut -d'.' -f1-3; }"
     fi
 
+    checkProjectDeps 'wardn'
+
     addExitHandler cleanup
 
     initSecureTempDir
@@ -713,6 +715,6 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up --add 'wardn,valt' 'rayvn/spinner' 'rayvn/terminal' 'valt/pinentry' || exit
+source rayvn.up --add 'wardn,valt' 'rayvn/spinner' 'rayvn/terminal' 'valt/pinentry' 'rayvn/deps' || exit
 
 main "${@}"

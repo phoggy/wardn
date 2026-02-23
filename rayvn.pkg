@@ -4,3 +4,9 @@ projectName='wardn'
 projectVersion='0.1.1+'
 projectReleaseDate=''
 docsWorktree='../wardn-pages'
+
+# Brew formula metadata (used by rayvn/deps for formula generation and runtime dep checks)
+declare -a nixBrewExclude=(curl)
+declare -A nixBinaryMap=([bitwarden-cli]='bw')
+brewTapRepo='phoggy/homebrew-rayvn'
+# Note: rayvnPkg → phoggy/rayvn/rayvn, valtPkg → phoggy/rayvn/valt (by convention)
