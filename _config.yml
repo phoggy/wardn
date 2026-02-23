@@ -1,6 +1,7 @@
 title: wardn
 description: Encrypted Bitwarden vault backups
 remote_theme: just-the-docs/just-the-docs
+color_scheme: dark
 url: https://rayvn.ink
 baseurl: /wardn
 
