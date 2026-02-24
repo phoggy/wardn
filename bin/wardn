@@ -240,9 +240,9 @@ prepareVault() {
     clearTerminal
     echo
     if [[ ${restoreFile} ]]; then
-        header 1 "Restore Vault Backup"
+        header -u "Restore Vault Backup"
     else
-        header 1 "Create Vault Backup"
+        header -u "Create Vault Backup"
     fi
     if ! useParentSession; then
         ensureLatestCLI
