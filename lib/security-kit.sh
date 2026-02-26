@@ -16,7 +16,7 @@ generateSecurityKit() {
     local newPdfFile="bitwarden-security-kit.pdf"
 
     # Platform-agnostic date formatting: try GNU date format first, fall back to POSIX with sed
-    _setSecurityKitFieldValue json 'last-updated-date' "${ date '+%B %-d, %Y' 2>/dev/null || date '+%B %d, %Y' | sed 's/ 0/ /'; }"
+    _setSecurityKitFieldValue json 'last-updated-date' "${ date '+%B %-d, %Y' 2>/dev/null || date '+%B %d, %Y' | gsed 's/ 0/ /'; }"
     _setSecurityKitFieldValue json 'bw-vault-url' "${vaultUrl}"   # TODO assume, or pass in?
 
     _getSecurityKitFieldValue json 'last-updated-date'

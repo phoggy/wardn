@@ -215,17 +215,17 @@ isEncryptedVolume() {
     if (( onMacOS )); then
 
         # Resolve the mount point of the directory
-        mountPoint="${ df -P "${dirPath}" | tail -1 | awk '{print $6}'; }" || return 1
+        mountPoint="${ df -P "${dirPath}" | tail -1 | gawk '{print $6}'; }" || return 1
 
         # Get the device associated with the mount point
-        device="${ df -P "${dirPath}" | tail -1 | awk '{print $1}'; }" || return 1
+        device="${ df -P "${dirPath}" | tail -1 | gawk '{print $1}'; }" || return 1
 
         # Check if the device is listed as encrypted
         diskutil info "${device}" | grep -q "^ *FileVault: *Yes"
     else
         # Linux: Check if directory is on an encrypted device using lsblk
-        mountPoint="${ df -P "${dirPath}" | tail -1 | awk '{print $6}'; }" || return 1
-        device="${ df -P "${dirPath}" | tail -1 | awk '{print $1}'; }" || return 1
+        mountPoint="${ df -P "${dirPath}" | tail -1 | gawk '{print $6}'; }" || return 1
+        device="${ df -P "${dirPath}" | tail -1 | gawk '{print $1}'; }" || return 1
 
         # Strip /dev/ prefix and partition number to get base device
         local baseDevice="${device#/dev/}"
@@ -470,7 +470,7 @@ restoreVault() {
     local oldVault="${ cat "${vaultFileName}"; }"
     local itemsCount="${ echo "${oldVault}" | jq '.items // 0 | length'; }"
     local foldersCount="${ echo "${oldVault}" | jq '.folders // 0 | length'; }"
-    local attachmentsCount="${ find attachments -type f | wc -l | awk '{print $1}'; }"
+    local attachmentsCount="${ find attachments -type f | wc -l | gawk '{print $1}'; }"
 
     # Update the names with sequence number prefixes so we can correctly map them later (STEP 4)
 
