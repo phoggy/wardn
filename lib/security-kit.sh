@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Library supporting generation of bitwarden-security-readiness-kit pdf.
-# Intended for use via: require 'wardn/security-kit'
+# Use via: require 'wardn/security-kit'
 
 require 'rayvn/core'
 
