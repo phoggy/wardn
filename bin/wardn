@@ -715,6 +715,6 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up --add 'wardn,valt' 'rayvn/spinner' 'rayvn/terminal' 'valt/pinentry' 'rayvn/dependencies' || exit
+source rayvn.up 'rayvn/spinner' 'rayvn/terminal' 'valt/pinentry' 'rayvn/dependencies' || exit
 
 main "${@}"
