@@ -35,7 +35,7 @@ usage() {
     echo "    -R, --recipients-file PATH     Encrypt to the recipients (public keys) listed at PATH. May be repeated."
     echo "    -b, --backup-dir PATH          Use the secure directory at PATH to store the encrypted backup."
     echo "    -p, --prefix PREFIX            Set a prefix for the backup file name."
-    echo "    -u, --url URL                  Set the URL for the Bitwarden server. Defaults to ${defaultServerUrl}"
+    show "    -u, --url URL                  Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" plain glue ")"
     echo "    -i, --identity-file PATH       Restore using the identity (private key) file at PATH. May be repeated."
     echo "    -l, --login                    Force full login even if API key environment variables are set."
     echo "    -h, --help                     Print this help message and exit."
@@ -115,8 +115,8 @@ init() {
             -u | --url) shift; vaultUrl="${1}" ;;
             -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION WARDN_DEV_BW_PWD ;;
             --update) updateCLI; exit 0 ;;
-            --debug) setDebug showOnExit ;;
-            --debug-new) setDebug clearLog showOnExit ;;
+            --debug) setDebug showLogOnExit ;;
+            --debug-new) setDebug clearLog showLogOnExit ;;
             --debug-out) setDebug tty "${ tty; }" ;;
             --debug-tty) shift; setDebug tty "${1}" ;;
             -h | --help) usage ;;
