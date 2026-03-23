@@ -6,22 +6,22 @@
 # shellcheck disable=SC2120
 usage() {
     echo
-    show bold "Create a backup of a Bitwarden vault or restore a vault from one, secured by an" cyan "Age" off bold "public key pair."
+    show bold "Create a backup of a Bitwarden vault or restore a vault from one, secured by an" cyan "Age" bold "public key pair."
     echo
-    show "Usage:" bold blue "${scriptName}" off "[backup] (-r RECIPIENT | -R PATH)... [-b BACKUP_DIR]"
-    show "      " bold blue "${scriptName}" off "restore BACKUP_FILE -i IDENTITY"
+    show "Usage:" bold blue "${scriptName}" "[backup] (-r RECIPIENT | -R PATH)... [-b BACKUP_DIR]"
+    show "      " bold blue "${scriptName}" "restore BACKUP_FILE -i IDENTITY"
     echo
     echo "The Bitwarden CLI is used to access the vault. Login/unlock requires user input: credentials are never stored."
     echo "Using an API key simplifies login, requiring only master password input rather than full credentials. This is"
     echo "enabled by setting the BW_CLIENTID and BW_CLIENTSECRET environment variables, for details see"
-    show blue "https://bitwarden.com/help/personal-api-key/" off glue "."
+    show blue "https://bitwarden.com/help/personal-api-key/" glue "."
     echo
-    show "Backup files are encrypted with" cyan "Age" off "public keys — see" blue "${rageProjectUrl}" off "for details on features"   # TODO: valt keys !!!
-    show "and key creation. In the" cyan "Age" off "system, a public key is called a 'recipient' and a private key is called an"
-    show "'identity'. Identities/private keys" bold italic "should" off "be protected by a strong password for this use case, and a copy"
-    show "of both the key and password should be stored offline in" italic "at least" off "one secure location."
+    show "Backup files are encrypted with" cyan "Age" "public keys — see" blue "${rageProjectUrl}" "for details on features"   # TODO: valt keys !!!
+    show "and key creation. In the" cyan "Age" "system, a public key is called a 'recipient' and a private key is called an"
+    show "'identity'. Identities/private keys" bold italic "should" "be protected by a strong password for this use case, and a copy"
+    show "of both the key and password should be stored offline in" italic "at least" "one secure location."
     echo
-    show bold green "Note" off "A temporary directory is required during both operations, and" italic "unencrypted" off "vault data will be stored there."
+    show bold green "Note" "A temporary directory is required during both operations, and" italic "unencrypted" "vault data will be stored there."
     echo "These files will be deleted by this script; however, file recovery software may still be able to read them long"
     echo "afterward. Standard security practice is to use encrypted storage to avoid this risk, so by default you will be"
     echo "prompted to agree that the temp directory is secured. If your system uses whole disk encryption, or if the"
@@ -35,7 +35,7 @@ usage() {
     echo "    -R, --recipients-file PATH     Encrypt to the recipients (public keys) listed at PATH. May be repeated."
     echo "    -b, --backup-dir PATH          Use the secure directory at PATH to store the encrypted backup."
     echo "    -p, --prefix PREFIX            Set a prefix for the backup file name."
-    show "    -u, --url URL                  Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" off glue ")"
+    show "    -u, --url URL                  Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" glue ")"
     echo "    -i, --identity-file PATH       Restore using the identity (private key) file at PATH. May be repeated."
     echo "    -l, --login                    Force full login even if API key environment variables are set."
     echo "    -h, --help                     Print this help message and exit."
@@ -50,7 +50,7 @@ usage() {
     echo "    WARDN_BACKUP_PREFIX            Set default backup file name prefix."
     echo "    WARDN_RECIPIENT                Set default recipient. May be a path to a recipients file."
     echo "    WARDN_IDENTITY                 Set default identity file."
-    show "    WARDN_SECURE_TEMP_DIR          Set the default secure temp directory. Use '@' to create a path via" italic "mktemp" off "."
+    show "    WARDN_SECURE_TEMP_DIR          Set the default secure temp directory. Use '@' to create a path via" italic "mktemp" "."
     echo "    WARDN_PASSWORD_VISIBILITY      Set the visibility of password entry characters: none, hide, show. Default: none"
     echo
     echo "Debug Options:"
@@ -282,7 +282,7 @@ ensureLatestCLI() {
         if HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade --dry-run bitwarden-cli 2>&1 | grep -q "already installed"; then
             stopSpinner spinnerId ": ${ show blue "${bwPath}" ;} is up to date (via brew) at ${ bw --version; }${doneCheck}"
         else
-            stopSpinner spinnerId ": ${ show bold red "${bwPath}" off "is out of date." ;}"
+            stopSpinner spinnerId ": ${ show bold red "${bwPath}" "is out of date." ;}"
             echo
             echo "Try executing: HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade bitwarden-cli"
             bye
@@ -410,7 +410,7 @@ backupVault() {
     fi
     logoutFromVault
     echo
-    show bold green "Vault backed up to" off "${backupFile}" bold green "size:" off bold "${size}"
+    show bold green "Vault backed up to" "${backupFile}" bold green "size:" bold "${size}"
 }
 
 restoreVault() {
@@ -666,15 +666,15 @@ assertVaultReady() {
 failVaultNotEmpty() {
     stopSpinner spinnerId ": ${ show red "vault must be empty before restoring to it." ;}"
     echo
-    show "If you are" bold italic "not sure" off "that you have a current backup, make another one or restore"
+    show "If you are" bold italic "not sure" "that you have a current backup, make another one or restore"
     echo "to a new account (with a Premium subscription if you have attachments)."
     echo
     echo "If you choose to empty the target vault:"
     echo
-    show "  1. In a browser, login at" blue "${vaultUrl}" off "."
-    show "  2. In the left pane, under" bold "Settings" off ", click" bold "My Account" off "."
-    show "  3. In the" red "Danger zone" off "section, click" red "Purge vault" off "."
-    show "  4. In the popup, enter you master password and click" red "Purge vault" off "."
+    show "  1. In a browser, login at" blue "${vaultUrl}" "."
+    show "  2. In the left pane, under" bold "Settings" ", click" bold "My Account" "."
+    show "  3. In the" red "Danger zone" "section, click" red "Purge vault" "."
+    show "  4. In the popup, enter you master password and click" red "Purge vault" "."
     echo
     bye
 }
