@@ -84,7 +84,7 @@ init() {
     readonly importVaultFileName='import-vault.json'
     readonly attachmentsDirName='attachments'
     readonly restoreNoteName='🔥 Restored Vault'
-    readonly doneCheck=". ${_greenCheckMark}"
+    readonly doneCheck=". ${greenCheckMark}"
     declare -grx passwordVisibility="${WARDN_PASSWORD_VISIBILITY:-none}"
 
     namePrefix="${WARDN_BACKUP_PREFIX}"
@@ -404,9 +404,9 @@ backupVault() {
     stopSpinner spinnerId "${doneCheck}"
 
     if (( attachmentsCount > 0 )); then
-        echo "Backed up ${itemsCount} items and ${attachmentsCount} attachments. ${_greenCheckMark}"
+        echo "Backed up ${itemsCount} items and ${attachmentsCount} attachments. ${greenCheckMark}"
     else
-        echo "Backed up ${itemsCount} items. ${_greenCheckMark}"
+        echo "Backed up ${itemsCount} items. ${greenCheckMark}"
     fi
     logoutFromVault
     echo
