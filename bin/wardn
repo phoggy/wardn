@@ -52,6 +52,15 @@ usage() {
     echo "    WARDN_IDENTITY                 Set default identity file."
     show "    WARDN_SECURE_TEMP_DIR          Set the default secure temp directory. Use '@' to create a path via" italic "mktemp" off "."
     echo "    WARDN_PASSWORD_VISIBILITY      Set the visibility of password entry characters: none, hide, show. Default: none"
+    echo
+    echo "Debug Options:"
+    echo
+    echo "    --debug           Enable debug, write output to log file and show on exit."
+    echo "    --debug-new       Enable debug, clear log file, write output to log file and show on exit."
+    echo "    --debug-out       Enable debug, write output to the current terminal."
+    echo "    --debug-tty TTY   Enable debug, write output to the specified TTY (e.g., /dev/ttys001)."
+    echo "    --debug-tty .     Enable debug, write output to the TTY path read from the '${HOME}/.debug.tty' file."
+    echo
     bye "${@}"
 }
 
@@ -114,10 +123,10 @@ init() {
             -u | --url) shift; vaultUrl="${1}" ;;
             -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION WARDN_DEV_BW_PWD ;;
             --update) updateCLI; exit 0 ;;
-            --debug) setDebug showLogOnExit ;;
-            --debug-new) setDebug clearLog showLogOnExit ;;
-            --debug-out) setDebug tty "${ tty; }" ;;
-            --debug-tty) shift; setDebug tty "${1}" ;;
+            --debug) setDebug --showLogOnExit ;;
+            --debug-new) setDebug --clearLog --showLogOnExit ;;
+            --debug-out) setDebug --tty "${ tty; }" ;;
+            --debug-tty) shift; setDebug --tty "${1}" ;;
             -h | --help) usage ;;
             -v) projectVersion wardn; exit 0 ;;
             --version) projectVersion wardn true; exit 0 ;;
