@@ -466,7 +466,7 @@ restoreVault() {
     echo "Preparing backup. You will be prompted for your private key passphrase if encrypted."
     cd "${secureWorkDir}" || fail
     local tarFile="backup.tar"
-    rage -d "${identities[@]}" "${backupFile}" -o "${tarFile}" 2> >(redStream) || fail
+    rage -d "${identities[@]}" "${backupFile}" -o "${tarFile}" 2> >(errorStream) || fail
 
     local spinnerId
     startSpinner spinnerId "Preparing import" # don't start until here, since the above will likely prompt for a password
