@@ -44,8 +44,8 @@ _initSecurityKit() {
 }
 
 _getSecurityKitFieldValue() {
-    local -n jsonVar="${1}"
-    local fieldKey="${2}"
+    local -n jsonVar="$1"
+    local fieldKey="$2"
     local fieldId="${security_kit_field_ids[${fieldKey}]}"
     [[ -z ${fieldId} ]] && fail "Unknown field key: ${fieldKey}"
 
@@ -59,9 +59,9 @@ _getSecurityKitFieldValue() {
 }
 
 _setSecurityKitFieldValue() {
-    local -n jsonVar="${1}"
-    local fieldKey="${2}"
-    local newValue="${3}"
+    local -n jsonVar="$1"
+    local fieldKey="$2"
+    local newValue="$3"
     local fieldId="${security_kit_field_ids[${fieldKey}]}"
     [[ -z ${fieldId} ]] && fail "Unknown field key: ${fieldKey}"
 
