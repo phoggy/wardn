@@ -3,8 +3,6 @@
 # Generate bitwarden-security-readiness-kit pdf.
 # Use via: require 'wardn/security-kit'
 
-require 'rayvn/core'
-
 # TODO: This is just a placeholder/test for now. How do get and securely keep
 #       a filled out version that we can update as needed?
 
@@ -31,7 +29,7 @@ generateSecurityKit() {
 PRIVATE_CODE="--+-+-----+-++(-++(---++++(---+( ⚠️ BEGIN 'wardn/security-kit' PRIVATE ⚠️ )+---)++++---)++-)++-+------+-+--"
 
 _init_wardn_security-kit() {
-    require 'rayvn/core'
+    :
 }
 
 _initSecurityKit() {
