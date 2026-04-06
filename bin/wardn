@@ -23,9 +23,9 @@ usage() {
     echo
     show bold green "Note" "A temporary directory is required during both operations, and" italic "unencrypted" "vault data will be stored there."
     echo "These files will be deleted by this script; however, file recovery software may still be able to read them long"
-    echo "afterward. Standard security practice is to use encrypted storage to avoid this risk, so by default you will be"
-    echo "prompted to agree that the temp directory is secured. If your system uses whole disk encryption, or if the"
-    echo "directory specified via -t is known to be encrypted (e.g. by VeraCrypt), this prompt can be suppressed by"
+    show "afterward. Use of memory backed temporary storage is preferred to avoid this risk: run" blue rayvn-tmp "to set up. If"
+    echo "that is not an option, the next best solution is to use encrypted storage. This will be detected if possible, but"
+    echo "if it fails you will be prompted to agree that the temp directory is secured. This prompt can be suppressed by"
     echo "setting the WARDN_SECURE_TEMP_DIR environment variable (see below)."
     echo
     echo "Options:"
@@ -50,7 +50,7 @@ usage() {
     echo "    WARDN_BACKUP_PREFIX            Set default backup file name prefix."
     echo "    WARDN_RECIPIENT                Set default recipient. May be a path to a recipients file."
     echo "    WARDN_IDENTITY                 Set default identity file."
-    show "    WARDN_SECURE_TEMP_DIR          Set the default secure temp directory. Use '@' to create a path via" italic "mktemp" "."
+    show "    WARDN_SECURE_TEMP_DIR          Set the default secure temp directory. Use '@' to select the rayvn temp directory."
     echo "    WARDN_PASSWORD_VISIBILITY      Set the visibility of password entry characters: none, hide, show. Default: none"
     echo
     echo "Debug Options:"
@@ -91,9 +91,15 @@ init() {
     vaultUrl=
     backupFile=
     restoreFile=
+    suppliedTempDir=
 
-    suppliedTempDir="${WARDN_SECURE_TEMP_DIR}"
-    [[ ${suppliedTempDir} && ${suppliedTempDir} != @ ]] && setDirVar suppliedTempDir "${suppliedTempDir}"
+    if [[ -n ${WARDN_SECURE_TEMP_DIR} ]]; then
+        if [[ ${WARDN_SECURE_TEMP_DIR} == '@' ]]; then
+            suppliedTempDir='@'
+        else
+            setDirVar suppliedTempDir "${WARDN_SECURE_TEMP_DIR}" "WARDN_SECURE_TEMP_DIR"
+        fi
+    fi
 
     recipients=()
     if [[ -n "${WARDN_RECIPIENT}" ]]; then
@@ -176,29 +182,28 @@ init() {
 initSecureTempDir() {
     if [[ ${suppliedTempDir} == '' || ${suppliedTempDir} == '@' ]]; then
 
-        # Use the rayvn system temp dir which will be deleted by rayvn on exit
+        # Use a random dir within the rayvn temp dir (which will be deleted by rayvn on exit)
 
-        secureTempDir="${ tempDirPath; }"
+        secureTempDir="${ makeTempDir; }"
 
     else
 
         # User supplied, so generate a temp dir within it. Remember the generated dir
         # to ensure we delete it on exit
 
-        local randomDirName="${ basename "${ mktemp -d -u; }"; }" || fail
-        suppliedTempDir="${suppliedTempDir}"
+        local randomDirName; randomHexString 8 randomDirName
         generatedTempDir="${ makeDir ${suppliedTempDir} ${randomDirName}; }"
         secureTempDir=${generatedTempDir}
     fi
     [[ -d ${secureTempDir} ]] || fail "Secure temp directory ${secureTempDir} not found!"
     cd "${secureTempDir}" || fail
-    if ! isEncryptedVolume "${secureTempDir}"; then
+    if ! isSecureVolume "${secureTempDir}"; then
         verifySecureTempDir
     fi
 }
 
 verifySecureTempDir() {
-    local source reply
+    local source responseIndex
     require 'rayvn/prompt'
     [[ ${generatedTempDir} ]] && source="supplied '${suppliedTempDir}' as root of" || source="system"
     echo
@@ -206,37 +211,25 @@ verifySecureTempDir() {
     echo
     show "Using ${source} temp directory:" blue "${secureTempDir}"
     echo
-    prompt "This directory SHOULD be encrypted to avoid leaking sensitive data. ${ show bold green "Proceed?" ;}" yes no reply
-    if [[ ${reply} != 'yes' ]]; then
+    show "This directory" bold italic "SHOULD" "be encrypted to avoid leaking sensitive data."
+    confirm "Do you want to continue anyway?" yes no responseIndex
+    if (( response == 1 )); then
         echo
-        fail "See help for more about this issue: ${scriptName} --help"
+        echo "OK. See help for more about this issue: ${scriptName} --help"
+        exit 0
     fi
 }
 
-isEncryptedVolume() {
-    local dirPath="${1}"
-    local mountPoint
-    local device
+isSecureVolume() {
+    local dirPath="$1"
+    local device; device="${ df -P "${dirPath}" | tail -1 | gawk '{print $1}'; }" || return 1
+
+    # tmpfs is RAM-backed — never written to disk, inherently more secure than encrypted storage
+    [[ ${device} == 'tmpfs' ]] && return 0
+
     if (( onMacOS )); then
-
-        # Resolve the mount point of the directory
-        mountPoint="${ df -P "${dirPath}" | tail -1 | gawk '{print $6}'; }" || return 1
-
-        # Get the device associated with the mount point
-        device="${ df -P "${dirPath}" | tail -1 | gawk '{print $1}'; }" || return 1
-
-        # Check if the device is listed as encrypted
         diskutil info "${device}" | grep -q "^ *FileVault: *Yes"
     else
-        # Linux: Check if directory is on an encrypted device using lsblk
-        mountPoint="${ df -P "${dirPath}" | tail -1 | gawk '{print $6}'; }" || return 1
-        device="${ df -P "${dirPath}" | tail -1 | gawk '{print $1}'; }" || return 1
-
-        # Strip /dev/ prefix and partition number to get base device
-        local baseDevice="${device#/dev/}"
-        baseDevice="${baseDevice%%[0-9]*}"
-
-        # Check if it's a crypt device or if lsblk shows type 'crypt'
         [[ ${device} =~ /dev/mapper/ ]] || lsblk -no TYPE "${device}" 2>/dev/null | grep -q "crypt"
     fi
 }
