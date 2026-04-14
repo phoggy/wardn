@@ -30,36 +30,26 @@ usage() {
     echo
     echo "Options:"
     echo
-    echo "    -t, --temp-dir PATH            Use the directory at PATH for temporary storage."
-    echo "    -r, --recipient RECIPIENT      Encrypt to the specified RECIPIENT (public key). May be repeated."
-    echo "    -R, --recipients-file PATH     Encrypt to the recipients (public keys) listed at PATH. May be repeated."
-    echo "    -b, --backup-dir PATH          Use the secure directory at PATH to store the encrypted backup."
-    echo "    -p, --prefix PREFIX            Set a prefix for the backup file name."
-    show "    -u, --url URL                  Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" glue ")"
-    echo "    -i, --identity-file PATH       Restore using the identity (private key) file at PATH. May be repeated."
-    echo "    -l, --login                    Force full login even if API key environment variables are set."
-    echo "    -h, --help                     Print this help message and exit."
-    echo "    -v                             Print the version and exit."
-    echo "    --version                      Print the version with release date and exit."
+    echo "    -t, --temp-dir PATH          Use the directory at PATH for temporary storage."
+    echo "    -r, --recipient RECIPIENT    Encrypt to the specified RECIPIENT (public key). May be repeated."
+    echo "    -R, --recipients-file PATH   Encrypt to the recipients (public keys) listed at PATH. May be repeated."
+    echo "    -b, --backup-dir PATH        Use the secure directory at PATH to store the encrypted backup."
+    echo "    -p, --prefix PREFIX          Set a prefix for the backup file name."
+    show "    -u, --url URL                Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" glue ")"
+    echo "    -i, --identity-file PATH     Restore using the identity (private key) file at PATH. May be repeated."
+    echo "    -l, --login                  Force full login even if API key environment variables are set."
+    commonOptions 33 false
     echo
     echo "Environment Variables"
     echo
-    echo "    BW_CLIENTID                    Set the Bitwarden API key."
-    echo "    BW_CLIENTSECRET                Set the Bitwarden API key secret."
-    echo "    WARDN_BACKUP_DIR               Set the default backup destination directory."
-    echo "    WARDN_BACKUP_PREFIX            Set default backup file name prefix."
-    echo "    WARDN_RECIPIENT                Set default recipient. May be a path to a recipients file."
-    echo "    WARDN_IDENTITY                 Set default identity file."
-    show "    WARDN_SECURE_TEMP_DIR          Set the default secure temp directory. Use '@' to select the rayvn temp directory."
-    echo "    WARDN_PASSWORD_VISIBILITY      Set the visibility of password entry characters: none, hide, show. Default: none"
-    echo
-    echo "Debug Options:"
-    echo
-    echo "    --debug           Enable debug, write output to log file and show on exit."
-    echo "    --debug-new       Enable debug, clear log file, write output to log file and show on exit."
-    echo "    --debug-out       Enable debug, write output to the current terminal."
-    echo "    --debug-tty TTY   Enable debug, write output to the specified TTY (e.g., /dev/ttys001)."
-    echo "    --debug-tty .     Enable debug, write output to the TTY path read from the '${HOME}/.debug.tty' file."
+    echo "    BW_CLIENTID                  Set the Bitwarden API key."
+    echo "    BW_CLIENTSECRET              Set the Bitwarden API key secret."
+    echo "    WARDN_BACKUP_DIR             Set the default backup destination directory."
+    echo "    WARDN_BACKUP_PREFIX          Set default backup file name prefix."
+    echo "    WARDN_RECIPIENT              Set default recipient. May be a path to a recipients file."
+    echo "    WARDN_IDENTITY               Set default identity file."
+    show "    WARDN_SECURE_TEMP_DIR        Set the default secure temp directory. Use '@' to select the rayvn temp directory."
+    echo "    WARDN_PASSWORD_VISIBILITY    Set the visibility of password entry characters: none, hide, show. Default: none"
     echo
     bye "${@}"
 }
