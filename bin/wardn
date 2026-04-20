@@ -83,6 +83,8 @@ init() {
     restoreFile=
     suppliedTempDir=
 
+    # TODO!!! remove this behavior and use makeSecureTempDir !
+
     if [[ -n ${WARDN_SECURE_TEMP_DIR} ]]; then
         if [[ ${WARDN_SECURE_TEMP_DIR} == '@' ]]; then
             suppliedTempDir='@'
