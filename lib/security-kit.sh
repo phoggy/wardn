@@ -10,7 +10,7 @@
 generateSecurityKit() {
     _initSecurityKit
     local json="${securityKitJson}"
-    local jsonFile="${ tempDirPath form.json; }"
+    local jsonFile; jsonFile=${ tempDirPath form.json; }
     local newPdfFile="bitwarden-security-kit.pdf"
 
     # Platform-agnostic date formatting: try GNU date format first, fall back to POSIX with sed
@@ -42,47 +42,47 @@ _initSecurityKit() {
 }
 
 _getSecurityKitFieldValue() {
-    local -n jsonVar="$1"
+    local -n jsonVarRef="$1"
     local fieldKey="$2"
-    local fieldId="${security_kit_field_ids[${fieldKey}]}"
+    local fieldId="${securityKitFieldIds[${fieldKey}]}"
     [[ -z ${fieldId} ]] && fail "Unknown field key: ${fieldKey}"
 
     local result
     result="${ jq -er '
         .forms[0].textfield[]?, .forms[0].checkbox[]?
         | select(.id == "'"${fieldId}"'")
-        | .value' <<< "${jsonVar}"; }" || fail "Field ID ${fieldId} (${fieldKey}) not found in JSON"
+        | .value' <<< "${jsonVarRef}"; }" || fail "Field ID ${fieldId} (${fieldKey}) not found in JSON"
 
     echo "${result}"
 }
 
 _setSecurityKitFieldValue() {
-    local -n jsonVar="$1"
+    local -n jsonVarRef="$1"
     local fieldKey="$2"
     local newValue="$3"
-    local fieldId="${security_kit_field_ids[${fieldKey}]}"
+    local fieldId="${securityKitFieldIds[${fieldKey}]}"
     [[ -z ${fieldId} ]] && fail "Unknown field key: ${fieldKey}"
 
     # Check that the ID exists as a string match
     jq -e --arg id "${fieldId}" '
         .forms[0].textfield[]?, .forms[0].checkbox[]?
-        | select(.id == $id)' <<< "${jsonVar}" > /dev/null \
+        | select(.id == $id)' <<< "${jsonVarRef}" > /dev/null \
         || fail "Field ID ${fieldId} (${fieldKey}) not found in JSON"
 
-    jsonVar="${ jq \
+    jsonVarRef="${ jq \
         --arg id "${fieldId}" \
         --argjson isBool "${ [[ ${newValue} == true || ${newValue} == false ]] && echo true || echo false; }" \
         --arg value "${newValue}" '
         (.forms[0].textfield[]?, .forms[0].checkbox[]?
-        | select(.id == $id)
+        | select(.id == ${id})
         | .value) = (
-            if $isBool then ($value | test("true")) else $value end
-        )' <<< "${jsonVar}"; }" || fail "Failed to update field '${fieldKey}'"
+            if ${isBool} then (${value} | test("true")) else ${value} end
+        )' <<< "${jsonVarRef}"; }" || fail "Failed to update field '${fieldKey}'"
 }
 
 # Name to id mapping. Ugh. Would be far less fragile if the field names corresponded
 # so we could eliminate this mapping! TODO ask u/Ryan_BW as u/djasonpenney suggested.
-declare -grA security_kit_field_ids=(
+declare -grA securityKitFieldIds=(
 
     [last-updated-date]='20'
 

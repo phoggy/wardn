@@ -57,7 +57,7 @@ usage() {
 main() {
     init "${@}"
     prepareVault
-    if [[ ${restoreFile} ]]; then
+    if [[ -n ${restoreFile} ]]; then
         restoreVault
     else
         backupVault
@@ -108,7 +108,7 @@ init() {
         identities=('-i' "${WARDN_IDENTITY}")
     fi
 
-    while (( ${#} > 0 )); do
+    while (( $# > 0 )); do
         case "${1}" in
             backup) unset restoreFile ;;
             restore) shift; setFileVar restoreFile "${1}" ;;
@@ -130,25 +130,25 @@ init() {
         shift
     done
 
-    if [[ ! ${backupDir} ]]; then
-        if [[ ${WARDN_BACKUP_DIR} ]]; then
+    if [[ -z ${backupDir} ]]; then
+        if [[ -n ${WARDN_BACKUP_DIR} ]]; then
              setDirVar backupDir "${WARDN_BACKUP_DIR}"
         else
             usage "Secure backup directory not specified."
         fi
     fi
 
-    [[ ${vaultUrl} ]] || vaultUrl="${defaultServerUrl}"
+    [[ -n ${vaultUrl} ]] || vaultUrl="${defaultServerUrl}"
 
-    if [[ ! ${restoreFile} ]]; then
+    if [[ -z ${restoreFile} ]]; then
 
         # backup
 
         (( ${#recipients[@]} )) || usage "one or more recipients required"
-        [[ ${namePrefix} ]] || namePrefix="${USER}"
+        [[ -n ${namePrefix} ]] || namePrefix="${USER}"
         readonly backupName="${namePrefix}-backup-${ timeStamp; }"
 
-        if [[ ${backupDir} ]]; then
+        if [[ -n ${backupDir} ]]; then
             backupFile="${backupDir}/${backupName}.${backupFileSuffix}"
         else
             backupFile="${backupName}.${backupFileSuffix}"
@@ -197,7 +197,7 @@ initSecureTempDir() {
 verifySecureTempDir() {
     local source responseIndex
     require 'rayvn/prompt'
-    [[ ${generatedTempDir} ]] && source="supplied '${suppliedTempDir}' as root of" || source="system"
+    [[ -n ${generatedTempDir} ]] && source="supplied '${suppliedTempDir}' as root of" || source="system"
     echo
     show bold "Verify configuration"
     echo
@@ -229,7 +229,7 @@ isSecureVolume() {
 prepareVault() {
     clearTerminal
     echo
-    if [[ ${restoreFile} ]]; then
+    if [[ -n ${restoreFile} ]]; then
         header -u "Restore Vault Backup"
     else
         header -u "Create Vault Backup"
@@ -287,7 +287,7 @@ unlockVault() {
 
     bw config server "${vaultUrl}" &> /dev/null
 
-    if [[ ${BW_CLIENTID} ]]; then
+    if [[ -n ${BW_CLIENTID} ]]; then
 
         # Use api key to login
         debug "login with api key"
@@ -308,9 +308,9 @@ unlockVault() {
 }
 
 openVault() {
-    local command=${1}
+    local command=$1
     declare -g BW_SESSION=
-    if [[ ${WARDN_DEV_BW_PWD} ]]; then
+    if [[ -n ${WARDN_DEV_BW_PWD} ]]; then
         useDevPassword ${command}
     else
         useCredentials ${command}
@@ -318,7 +318,7 @@ openVault() {
 }
 
 useDevPassword() {
-    local command=${1}
+    local command=$1
     debug "useDevPassword ${command}"
     [[ ${command} == login ]] && stopSpinner spinnerId ". Credentials required..."
     BW_SESSION="${ assertCommand --stderr --error "Failed to ${command} vault" bw ${command} --raw --passwordenv WARDN_DEV_BW_PWD; }"
@@ -326,7 +326,7 @@ useDevPassword() {
 }
 
 useCredentials() {
-    local command=${1}
+    local command=$1
     stopSpinner spinnerId ". Credentials required..."
     debug "useCredentials ${command}"
     for retryIndex in {1..3}; do
@@ -362,7 +362,7 @@ backupVault() {
         attachments="${ echo "${item}" | jq -r ".attachments"; }"
         length="${ echo "${attachments}" | jq -r ". | length"; }"
 
-        for ((retryIndex = 0; retryIndex < ${length}; retryIndex++)); do
+        for (( retryIndex = 0; retryIndex < ${length}; retryIndex++ )); do
             attachDir="${ makeDir ${attachmentsDir} ${attachmentItemId}; }"
 
             attachment="${ echo "${attachments}" | jq ".[${retryIndex}]"; }"
@@ -381,7 +381,7 @@ backupVault() {
     debug "calling tar & rage, recipients=${recipients[*]}"
     assertCommand --stderr --strip-brackets --error "Failed to encrypt backup" \
         eval 'tar cz "${backupName}" | rage "${recipients[@]}" > "${backupFile}"'
-    local size="${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }"
+    local size; size=${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }
 
     stopSpinner spinnerId "${doneCheck}"
 
@@ -437,7 +437,7 @@ restoreVault() {
     # (https://github.com/bitwarden/clients/issues/13429) and the code is commented until a fix is implemented.
 
     local backupFile="${restoreFile}"
-    local backupFileName="${ basename ${backupFile}; }"
+    local backupFileName; backupFileName=${ basename ${backupFile}; }
     local oldIds=()
     declare -A idMap=()
 
@@ -525,7 +525,7 @@ prefixNamesWithIndex() {   # STEP 4
     local key newName
     local tempVault="${vaultRef}" # TODO don't need this indirection
 
-    for ((i = 0; i < itemsCount; i++)); do
+    for (( i = 0; i < itemsCount; i++ )); do
         name="${ echo "${tempVault}" | jq -r --argjson i ${i} '.items[$i].name'; }"
         newName="<${i}> ${name}"
         tempVault="${ echo "${tempVault}" | jq --argjson i ${i} --arg name "${newName}" '.items[$i].name=$name'; }"
@@ -535,11 +535,11 @@ prefixNamesWithIndex() {   # STEP 4
 
 restoreItems() { # STEP 8
 
-    local -n oldVaultRef=${1}
-    local -n newVaultRef=${2}
-    local -n oldIdsRef=${3}
-    local -n idMapRef=${4}
-    local itemsCount=${5}
+    local -n oldVaultRef=$1
+    local -n newVaultRef=$2
+    local -n oldIdsRef=$3
+    local -n idMapRef=$4
+    local itemsCount=$5
     local i oldId newId newItem indexedName key newItem restoredItem editedItem # cDate rDate dDate
 
     for (( i = 0; i < itemsCount; i++ )); do
@@ -589,12 +589,12 @@ restoreItems() { # STEP 8
 
 addNote() {  # STEP 9
     local source="${1}"
-    local items=${2}
-    local folders=${3}
-    local attachments=${4}
-    local i="${ [[ ${items} == 1 ]] && echo item || echo items; }"
-    local f="${ [[ ${folders} == 1 ]] && echo folder || echo folders; }"
-    local a="${ [[ ${items} == 1 ]] && echo attachment || echo attachments; }"
+    local items=$2
+    local folders=$3
+    local attachments=$4
+    local i; i=${ [[ ${items} == 1 ]] && echo item || echo items; }
+    local f; f=${ [[ ${folders} == 1 ]] && echo folder || echo folders; }
+    local a; a=${ [[ ${items} == 1 ]] && echo attachment || echo attachments; }
     local format='Restored on %s\n\n%d %s, %d %s, %d %s from %s\n'
     note="${ printf "${format}" "${ date; }" ${items} ${i} ${folders} ${f} ${attachments} ${a} "${source}"; }"
 
@@ -602,21 +602,21 @@ addNote() {  # STEP 9
 
     debugJson note
 
-    local temp="${ bw get template item; }" || fail
+    local temp; temp=${ bw get template item; } || fail
     local name="${restoreNoteName}"
-    local item="${ echo ${temp} | jq -r --arg nm "${name}" --arg nt "${note}" '.type=2 | .secureNote.type=0 | .name=$nm | .notes=$nt'; }"
+    local item; item=${ echo ${temp} | jq -r --arg nm "${name}" --arg nt "${note}" '.type=2 | .secureNote.type=0 | .name=$nm | .notes=$nt'; }
     echo ${item} | bw encode | bw create item > /dev/null || fail
 }
 
 uploadAttachments() { # STEP 10
-    local -n idMapRef=${1}
+    local -n idMapRef=$1
     local attachmentDir attachmentFile
     pushd "${attachmentsDirName}" > /dev/null || fail
 
     for attachmentDir in ./*; do
 
         pushd "${attachmentDir}" > /dev/null || fail
-        local oldAttachmentItemId="${ basename ${attachmentDir}; }"
+        local oldAttachmentItemId; oldAttachmentItemId=${ basename ${attachmentDir}; }
         local newAttachmentItemId="${idMapRef[${oldAttachmentItemId}]}"
         debugVars oldAttachmentItemId newAttachmentItemId
 
@@ -632,15 +632,15 @@ assertVaultReady() {
     local spinnerId
     startSpinner spinnerId "Checking vault"
 
-    local vault="${ bw export --raw --format json; }"
+    local vault; vault=${ bw export --raw --format json; }
 
-    local orgVault="${ echo "${vault}" | jq '.collections != null' | grep true; }"
-    [[ ${orgVault} ]] && fail "Cannot restore to an Organization vault (yet)."
+    local orgVault; orgVault=${ echo "${vault}" | jq '.collections != null' | grep true; }
+    [[ -n ${orgVault} ]] && fail "Cannot restore to an Organization vault (yet)."
 
-    local itemsCount="${ echo "${vault}" | jq '.items // 0 | length'; }"
+    local itemsCount; itemsCount=${ echo "${vault}" | jq '.items // 0 | length'; }
     (( itemsCount == 0 )) || failVaultNotEmpty
 
-    local foldersCount="${ echo "${vault}" | jq '.folders // 0 | length'; }"
+    local foldersCount; foldersCount=${ echo "${vault}" | jq '.folders // 0 | length'; }
     (( foldersCount == 0 )) || failVaultNotEmpty
     stopSpinner spinnerId "${doneCheck}"
 }
@@ -662,7 +662,7 @@ failVaultNotEmpty() {
 }
 
 logoutFromVault() {
-    local arg=${1}
+    local arg=$1
     if [[ ${arg} == force ]]; then
         bw logout > /dev/null 2>&1
         unset BW_SESSION
@@ -674,19 +674,19 @@ logoutFromVault() {
 
 cleanup() {
     logoutFromVault
-    if [[ ${generatedTempDir} ]]; then
+    if [[ -n ${generatedTempDir} ]]; then
         rm -rf "${generatedTempDir}" > /dev/null 2>&1 || warn "Failed to delete temp dir: ${generatedTempDir}"
     fi
 }
 
 updateCLI () { # TODO: harden and expose command!
 #    local url="${1}"
-    local installFile="${ command -v bw; }"
-    local installDir="${ dirname ${installFile}; }"
+    local installFile; installFile=${ command -v bw; }
+    local installDir; installDir=${ dirname ${installFile}; }
     echo "Installed version: ${ ${installFile} --version; }"
-    if [[ ! ${url} ]]; then
-        local response="${ bw update | grep http; }"
-        if [[ ${response} ]]; then
+    if [[ -z ${url} ]]; then
+        local response; response=${ bw update | grep http; }
+        if [[ -n ${response} ]]; then
             url="http${response##*http}"
         fi
     fi
