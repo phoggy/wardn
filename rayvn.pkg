@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 projectName='wardn'
-projectVersion='0.1.1+'
 projectDescription='Encrypted Bitwarden vault backups. Built with rayvn and valt.'
+projectVersion='0.1.1+'
 projectReleaseDate=''
 docsWorktree='../wardn-pages'
 
