@@ -2,6 +2,7 @@
 
 projectName='wardn'
 projectVersion='0.1.1+'
+projectDescription='Encrypted Bitwarden vault backups. Built with rayvn and valt.'
 projectReleaseDate=''
 docsWorktree='../wardn-pages'
 
