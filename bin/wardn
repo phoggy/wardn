@@ -321,7 +321,7 @@ useDevPassword() {
     local command=$1
     debug "useDevPassword ${command}"
     [[ ${command} == login ]] && stopSpinner spinnerId ". Credentials required..."
-    BW_SESSION="${ assertCommand --stderr --error "Failed to ${command} vault" bw ${command} --raw --passwordenv WARDN_DEV_BW_PWD; }"
+    BW_SESSION="${ assertCommand --error "Failed to ${command} vault" bw ${command} --raw --passwordenv WARDN_DEV_BW_PWD; }"
     [[ ${command} == unlock ]] && stopSpinner spinnerId "${doneCheck}"
 }
 
@@ -339,6 +339,10 @@ syncVault() {
     startSpinner spinnerId "Syncing vault"
     bw sync > /dev/null || fail
     stopSpinner spinnerId "${doneCheck}"
+}
+
+_stripBracketLines() {
+    echo "$1" | grep -v '^\[.*\]$' | gsed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}'
 }
 
 backupVault() {
@@ -379,7 +383,7 @@ backupVault() {
     done
 
     debug "calling tar & rage, recipients=${recipients[*]}"
-    assertCommand --stderr --strip-brackets --error "Failed to encrypt backup" \
+    assertCommand --transform _stripBracketLines --error "Failed to encrypt backup" \
         eval 'tar cz "${backupName}" | rage "${recipients[@]}" > "${backupFile}"'
     local size; size=${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }
 
