@@ -221,7 +221,7 @@ isSecureVolume() {
     if (( onMacOS )); then
         diskutil info "${device}" | grep -q "^ *FileVault: *Yes"
     else
-        [[ ${device} =~ /dev/mapper/ ]] || lsblk -no TYPE "${device}" 2>/dev/null | grep -q "crypt"
+        [[ ${device} =~ /dev/mapper/ ]] || lsblk -no TYPE "${device}" 2> /dev/null | grep -q "crypt"
     fi
 }
 
@@ -375,7 +375,7 @@ backupVault() {
             # get attachment
 
             bw get attachment "${attachmentId}" --itemid "${attachmentItemId}" \
-                --output "${attachDir}/${fileName}" >/dev/null 2>&1 || fail
+                --output "${attachDir}/${fileName}" > /dev/null 2>&1 || fail
 
             (( attachmentsCount++ ))
         done
