@@ -256,21 +256,65 @@ ensureLatestCLI() {
 
     startSpinner spinnerId "Checking Bitwarden CLI version"
 
+    local soakDays=14 daysAgo
     if (( inNix )); then
-        # Under Nix, the version is pinned by flake.lock
-        stopSpinner spinnerId ": ${ show blue "${bwPath}" ;} at ${ bw --version; } (Nix)${doneCheck}"
+        local installedVersion
+        installedVersion=${ bw --version; }
+        if _bwReleaseDaysAgo "${installedVersion}" daysAgo && (( daysAgo < soakDays )); then
+            stopSpinner spinnerId ": ${ show yellow "${bwPath}" "at ${installedVersion} (Nix, ${daysAgo}d old)"; }"
+            echo
+            show "Bitwarden CLI ${installedVersion} was released ${daysAgo} day(s) ago."
+            show "Soak period (${soakDays} days) has not elapsed — consider waiting before using this build."
+            echo
+        else
+            stopSpinner spinnerId ": ${ show blue "${bwPath}" ;} at ${installedVersion} (Nix)${doneCheck}"
+        fi
     elif command -v brew &> /dev/null; then
         if HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade --dry-run bitwarden-cli 2>&1 | grep -q "already installed"; then
             stopSpinner spinnerId ": ${ show blue "${bwPath}" ;} is up to date (via brew) at ${ bw --version; }${doneCheck}"
         else
-            stopSpinner spinnerId ": ${ show bold red "${bwPath}" "is out of date." ;}"
-            echo
-            echo "Try executing: HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade bitwarden-cli"
-            bye
+            local latestVersion
+            latestVersion=${ brew info --json bitwarden-cli 2> /dev/null | jq -r '.[0].versions.stable'; }
+            if [[ -n ${latestVersion} && ${latestVersion} != 'null' ]] && _bwReleaseDaysAgo "${latestVersion}" daysAgo && (( daysAgo < soakDays )); then
+                stopSpinner spinnerId ": ${ show yellow "${bwPath}" "update available (${daysAgo}d old, ${soakDays}d soak)"; }"
+                echo
+                show "Bitwarden CLI ${latestVersion} was released ${daysAgo} day(s) ago."
+                show "Skipping upgrade: soak period (${soakDays} days) has not elapsed — supply chain protection."
+                show "To upgrade now:" blue "HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade bitwarden-cli"
+                echo
+            else
+                stopSpinner spinnerId ": ${ show bold red "${bwPath}" "is out of date." ;}"
+                echo
+                echo "Try executing: HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade bitwarden-cli"
+                bye
+            fi
         fi
     else
         stopSpinner spinnerId ": ${ show blue "${bwPath}" ;} at ${ bw --version; }${doneCheck}"
     fi
+}
+
+# Return 0 and set daysRef to the number of days since the given bitwarden-cli version was
+# published on GitHub. Returns 1 if the release date cannot be determined.
+_bwReleaseDaysAgo() {
+    local version="$1"
+    local -n daysRef=$2
+    local json releasedAt releaseEpoch nowEpoch
+
+    json=${ curl -sf --max-time 10 \
+        -H 'Accept: application/vnd.github.v3+json' \
+        "https://api.github.com/repos/bitwarden/clients/releases/tags/cli-v${version}"; } || return 1
+
+    releasedAt=${ printf '%s' "${json}" | jq -r '.published_at'; }
+    [[ -n ${releasedAt} && ${releasedAt} != 'null' ]] || return 1
+
+    if (( onMacOS )); then
+        releaseEpoch=${ date -juf '%Y-%m-%dT%H:%M:%SZ' "${releasedAt}" '+%s'; } || return 1
+    else
+        releaseEpoch=${ date -d "${releasedAt}" '+%s'; } || return 1
+    fi
+    nowEpoch=${ date -u '+%s'; }
+    daysRef=$(( (nowEpoch - releaseEpoch) / 86400 ))
 }
 
 sessionStatus() {
