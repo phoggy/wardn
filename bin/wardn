@@ -427,7 +427,7 @@ backupVault() {
 
     debug "calling tar & rage, recipients=${recipients[*]}"
     assertCommand --transform _stripBracketLines --error "Failed to encrypt backup" \
-        eval 'tar cz "${backupName}" | rage "${recipients[@]}" > "${backupFile}"'
+        eval 'tar cz "${backupName}" | age "${recipients[@]}" > "${backupFile}"'
     local size; size=${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }
 
     stopSpinner spinnerId "${doneCheck}"
