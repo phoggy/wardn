@@ -38,19 +38,7 @@ usage() {
     show "    -u, --url URL                Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" glue ")"
     echo "    -i, --identity-file PATH     Restore using the identity (private key) file at PATH. May be repeated."
     echo "    -l, --login                  Force full login even if API key environment variables are set."
-    commonOptions 33 false
-    echo
-    echo "Environment Variables"
-    echo
-    echo "    BW_CLIENTID                  Set the Bitwarden API key."
-    echo "    BW_CLIENTSECRET              Set the Bitwarden API key secret."
-    echo "    WARDN_BACKUP_DIR             Set the default backup destination directory."
-    echo "    WARDN_BACKUP_PREFIX          Set default backup file name prefix."
-    echo "    WARDN_RECIPIENT              Set default recipient. May be a path to a recipients file."
-    echo "    WARDN_IDENTITY               Set default identity file."
-    show "    WARDN_SECURE_TEMP_DIR        Set the default secure temp directory. Use '@' to select the rayvn temp directory."
-    echo "    WARDN_PASSWORD_VISIBILITY    Set the visibility of password entry characters: none, hide, show. Default: none"
-    echo
+    commonOptions 33 true true envVars
     bye "${@}"
 }
 
@@ -66,15 +54,23 @@ main() {
 
 init() {
     useValtPinEntry
-    readonly rageProjectUrl='https://github.com/str4d/rage'
-    readonly defaultServerUrl='https://vault.bitwarden.com'
-    readonly backupFileSuffix='valt'
-    readonly vaultFileName='vault.json'
-    readonly importVaultFileName='import-vault.json'
-    readonly attachmentsDirName='attachments'
-    readonly restoreNoteName='🔥 Restored Vault'
-    readonly doneCheck=". ${successCheckMark}"
-    declare -grx passwordVisibility="${WARDN_PASSWORD_VISIBILITY:-none}"
+    declare -gr rageProjectUrl='https://github.com/str4d/rage'
+    declare -gr defaultServerUrl='https://vault.bitwarden.com'
+    declare -gr backupFileSuffix='valt'
+    declare -gr vaultFileName='vault.json'
+    declare -gr importVaultFileName='import-vault.json'
+    declare -gr attachmentsDirName='attachments'
+    declare -gr restoreNoteName='🔥 Restored Vault'
+    declare -gr doneCheck=". ${successCheckMark}"
+    declare -gAr envVars=(
+        ['BW_CLIENTID']="Bitwarden API key."
+        ['BW_CLIENTSECRET']="Bitwarden API key secret."
+        ['WARDN_BACKUP_DIR']="Default backup destination directory."
+        ['WARDN_BACKUP_PREFIX']="Default backup file name prefix."
+        ['WARDN_RECIPIENT']="Default recipient. May be a path to a recipients file."
+        ['WARDN_IDENTITY']="Default identity file."
+        ['WARDN_SECURE_TEMP_DIR']="Default secure temp directory. Use '@' to select the rayvn temp directory."
+    )
 
     namePrefix="${WARDN_BACKUP_PREFIX}"
     vaultUrl=
@@ -145,7 +141,7 @@ init() {
 
         (( ${#recipients[@]} )) || usage "one or more recipients required"
         [[ -n ${namePrefix} ]] || namePrefix="${USER}"
-        readonly backupName="${namePrefix}-backup-${ timeStamp; }"
+        declare -gr backupName="${namePrefix}-backup-${ timeStamp; }"
 
         if [[ -n ${backupDir} ]]; then
             backupFile="${backupDir}/${backupName}.${backupFileSuffix}"
@@ -157,7 +153,7 @@ init() {
         # restore
 
         (( ${#identities[@]} )) || usage "one or more identities required"
-        readonly backupName="${ basename ${restoreFile} | cut -d'.' -f1-3; }"
+        declare -gr backupName="${ basename ${restoreFile} | cut -d'.' -f1-3; }"
     fi
 
     checkProjectDependencies 'wardn'
@@ -165,9 +161,9 @@ init() {
     addExitHandler cleanup
 
     initSecureTempDir
-    readonly secureWorkDir="${ makeDir "${secureTempDir}" "${backupName}"; }"
-    readonly vaultFile="${secureWorkDir}/vault.json"
-    readonly attachmentsDir="${ makeDir ${secureWorkDir} attachments; }"
+    declare -gr secureWorkDir="${ makeDir "${secureTempDir}" "${backupName}"; }"
+    declare -gr vaultFile="${secureWorkDir}/vault.json"
+    declare -gr attachmentsDir="${ makeDir ${secureWorkDir} attachments; }"
 }
 
 initSecureTempDir() {
