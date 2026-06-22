@@ -38,7 +38,7 @@ usage() {
     show "    -u, --url URL                Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" glue ")"
     echo "    -i, --identity-file PATH     Restore using the identity (private key) file at PATH. May be repeated."
     echo "    -l, --login                  Force full login even if API key environment variables are set."
-    commonOptions 33 true true envVars
+    showCommonOptions 33 true true envVars
     bye "${@}"
 }
 
