@@ -16,7 +16,7 @@ usage() {
     echo "enabled by setting the BW_CLIENTID and BW_CLIENTSECRET environment variables, for details see"
     show blue "https://bitwarden.com/help/personal-api-key/" glue "."
     echo
-    show "Backup files are encrypted with" cyan "Age" "public keys — see" blue "${rageProjectUrl}" "for details on features"   # TODO: valt keys !!!
+    show "Backup files are encrypted with" cyan "Age" "public keys — see" blue "${ageProjectUrl}" "for details on features"   # TODO: valt keys !!!
     show "and key creation. In the" cyan "Age" "system, a public key is called a 'recipient' and a private key is called an"
     show "'identity'. Identities/private keys" bold italic "should" "be protected by a strong password for this use case, and a copy"
     show "of both the key and password should be stored offline in" italic "at least" "one secure location."
@@ -53,8 +53,7 @@ main() {
 }
 
 init() {
-    useValtPinEntry
-    declare -gr rageProjectUrl='https://github.com/str4d/rage'
+    declare -gr ageProjectUrl='https://github.com/FiloSottile/age'
     declare -gr defaultServerUrl='https://vault.bitwarden.com'
     declare -gr backupFileSuffix='valt'
     declare -gr vaultFileName='vault.json'
@@ -167,6 +166,7 @@ init() {
 }
 
 initSecureTempDir() {
+    declare -g secureTempDir generatedTempDir
     if [[ ${suppliedTempDir} == '' || ${suppliedTempDir} == '@' ]]; then
 
         # Use a random dir within the rayvn temp dir (which will be deleted by rayvn on exit)
@@ -387,7 +387,7 @@ _stripBracketLines() {
 backupVault() {
     local items item
     local attachmentItemIds attachmentItemId
-    local attachments attachment
+    local attachments attachment attachmentId fileName length retryIndex
     local attachDir
     local itemsCount
     local attachmentsCount
@@ -421,7 +421,7 @@ backupVault() {
         done
     done
 
-    debug "calling tar & rage, recipients=${recipients[*]}"
+    debug "calling tar & age, recipients=${recipients[*]}"
     assertCommand --transform _stripBracketLines --error "Failed to encrypt backup" \
         eval 'tar cz "${backupName}" | age "${recipients[@]}" > "${backupFile}"'
     local size; size=${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }
@@ -491,7 +491,7 @@ restoreVault() {
     echo "Preparing backup. You will be prompted for your private key passphrase if encrypted."
     cd "${secureWorkDir}" || fail
     local tarFile="backup.tar"
-    rage -d "${identities[@]}" "${backupFile}" -o "${tarFile}" 2> >(errorStream) || fail
+    age -d "${identities[@]}" -o "${tarFile}" "${backupFile}" 2> >(errorStream) || fail
 
     local spinnerId
     startSpinner spinnerId "Preparing import" # don't start until here, since the above will likely prompt for a password
@@ -500,10 +500,10 @@ restoreVault() {
 
     # Get vault and grab some stats from it (STEPS 2 & 3)
 
-    local oldVault="${ cat "${vaultFileName}"; }"
-    local itemsCount="${ echo "${oldVault}" | jq '.items // 0 | length'; }"
-    local foldersCount="${ echo "${oldVault}" | jq '.folders // 0 | length'; }"
-    local attachmentsCount="${ find attachments -type f | wc -l | gawk '{print $1}'; }"
+    local oldVault; readFile "${vaultFileName}" oldVault
+    local itemsCount; itemsCount="${ echo "${oldVault}" | jq '.items // 0 | length'; }"
+    local foldersCount; foldersCount="${ echo "${oldVault}" | jq '.folders // 0 | length'; }"
+    local attachmentsCount; attachmentsCount="${ find attachments -type f | wc -l | gawk '{print $1}'; }"
 
     # Update the names with sequence number prefixes so we can correctly map them later (STEP 4)
 
@@ -523,11 +523,11 @@ restoreVault() {
 
     # Export vault (STEP 7)
 
-    local newVault="${ bw export --format json --raw; }" || fail
+    local newVault; newVault="${ bw export --format json --raw; }" || fail
 
     # Edit each item in the new vault to fix name and copy old dates, building idMap (STEP 8)
 
-    local suffix="${ (( itemsCount < 10 )) && echo '' || echo ' (this may take some time)'; }"
+    local suffix; suffix="${ (( itemsCount < 10 )) && echo '' || echo ' (this may take some time)'; }"
 
     nextSpinner spinnerId "${doneCheck}" "Restoring ${itemsCount} items${suffix}"
     restoreItems oldVault newVault oldIds idMap ${itemsCount}
@@ -563,9 +563,9 @@ nextSpinner() {
 }
 
 prefixNamesWithIndex() {   # STEP 4
-    local -n vaultRef=${1}
-    local itemsCount=${2}
-    local key newName
+    local -n vaultRef=$1
+    local itemsCount=$2
+    local i key name newName
     local tempVault="${vaultRef}" # TODO don't need this indirection
 
     for (( i = 0; i < itemsCount; i++ )); do
@@ -583,7 +583,7 @@ restoreItems() { # STEP 8
     local -n oldIdsRef=$3
     local -n idMapRef=$4
     local itemsCount=$5
-    local i oldId newId newItem indexedName key newItem restoredItem editedItem # cDate rDate dDate
+    local i oldId oldItem newId newItem indexedName name key restoredItem editedItem # cDate rDate dDate
 
     for (( i = 0; i < itemsCount; i++ )); do
 
@@ -639,7 +639,7 @@ addNote() {  # STEP 9
     local f; f=${ [[ ${folders} == 1 ]] && echo folder || echo folders; }
     local a; a=${ [[ ${items} == 1 ]] && echo attachment || echo attachments; }
     local format='Restored on %s\n\n%d %s, %d %s, %d %s from %s\n'
-    note="${ printf "${format}" "${ date; }" ${items} ${i} ${folders} ${f} ${attachments} ${a} "${source}"; }"
+    local note; note="${ printf "${format}" "${ date; }" ${items} ${i} ${folders} ${f} ${attachments} ${a} "${source}"; }"
 
     # TODO Add hostname, username, uname, IP, reverse dns... https://iplocation.io/ ip.info ???
 
@@ -723,7 +723,7 @@ cleanup() {
 }
 
 updateCLI () { # TODO: harden and expose command!
-#    local url="${1}"
+    local url
     local installFile; installFile=${ command -v bw; }
     local installDir; installDir=${ dirname ${installFile}; }
     echo "Installed version: ${ ${installFile} --version; }"
@@ -748,6 +748,6 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up 'rayvn/spinner' 'rayvn/terminal' 'valt/pinentry' 'rayvn/dependencies' || exit
+source rayvn.up 'rayvn/spinner' 'rayvn/terminal' 'rayvn/dependencies' || exit
 
 main "${@}"

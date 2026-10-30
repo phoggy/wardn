@@ -34,7 +34,6 @@
           valtPkg
           pkgs.jq
           pkgs.age
-          pkgs.rage
           pkgs.gawk
           pkgs.gnused
           pkgs.gnugrep
@@ -150,7 +149,7 @@ EOF
             # Include $out/bin for rayvn.up project root resolution.
             wrapProgram "$out/bin/wardn" \
               --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath ([
-                pkgs.bash rayvnPkg valtPkg pkgs.jq pkgs.age pkgs.rage pkgs.gawk pkgs.gnused pkgs.gnugrep pkgs.curl
+                pkgs.bash rayvnPkg valtPkg pkgs.jq pkgs.age pkgs.gawk pkgs.gnused pkgs.gnugrep pkgs.curl
               ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
                 pkgs.bitwarden-cli
               ])}"
