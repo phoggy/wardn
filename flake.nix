@@ -2,10 +2,19 @@
   description = "wardn - Encrypted Bitwarden vault backup and restore";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
     flake-utils.url = "github:numtide/flake-utils";
-    rayvn.url = "github:phoggy/rayvn";
-    valt.url = "github:phoggy/valt";
+    rayvn = {
+      url = "github:phoggy/rayvn";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+    valt = {
+      url = "github:phoggy/valt";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+      inputs.rayvn.follows = "rayvn";
+    };
   };
 
   outputs = { self, nixpkgs, flake-utils, rayvn, valt }:
@@ -24,7 +33,11 @@
           rayvnPkg
           valtPkg
           pkgs.jq
+          pkgs.age
           pkgs.rage
+          pkgs.gawk
+          pkgs.gnused
+          pkgs.gnugrep
           pkgs.pdfcpu
           pkgs.curl
         ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
@@ -83,6 +96,7 @@ EOF
             for f in "$out/bin/.wardn-wrapped" "$out/share/wardn/lib/"*.sh; do
               if [ -f "$f" ]; then
                 sed -i "1s|^#\\!.*/bin/bash.*|#!/usr/bin/env bash|" "$f"
+                sed -i "1s|^#\\!/usr/bin/env rayvn-bash$|#!/usr/bin/env bash|" "$f"
               fi
             done
           '';
@@ -136,7 +150,7 @@ EOF
             # Include $out/bin for rayvn.up project root resolution.
             wrapProgram "$out/bin/wardn" \
               --prefix PATH : "$out/bin:${pkgs.lib.makeBinPath ([
-                pkgs.bash rayvnPkg valtPkg pkgs.jq pkgs.rage pkgs.curl
+                pkgs.bash rayvnPkg valtPkg pkgs.jq pkgs.age pkgs.rage pkgs.gawk pkgs.gnused pkgs.gnugrep pkgs.curl
               ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
                 pkgs.bitwarden-cli
               ])}"
@@ -148,6 +162,7 @@ EOF
             for f in "$out/bin/.wardn-wrapped" "$out/share/wardn/lib/"*.sh; do
               if [ -f "$f" ]; then
                 sed -i "1s|^#\\!.*/bin/bash.*|#!/usr/bin/env bash|" "$f"
+                sed -i "1s|^#\\!/usr/bin/env rayvn-bash$|#!/usr/bin/env bash|" "$f"
               fi
             done
           '';
