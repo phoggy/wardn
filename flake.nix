@@ -95,7 +95,6 @@ EOF
             for f in "$out/bin/.wardn-wrapped" "$out/share/wardn/lib/"*.sh; do
               if [ -f "$f" ]; then
                 sed -i "1s|^#\\!.*/bin/bash.*|#!/usr/bin/env bash|" "$f"
-                sed -i "1s|^#\\!/usr/bin/env rayvn-bash$|#!/usr/bin/env bash|" "$f"
               fi
             done
           '';
@@ -161,7 +160,6 @@ EOF
             for f in "$out/bin/.wardn-wrapped" "$out/share/wardn/lib/"*.sh; do
               if [ -f "$f" ]; then
                 sed -i "1s|^#\\!.*/bin/bash.*|#!/usr/bin/env bash|" "$f"
-                sed -i "1s|^#\\!/usr/bin/env rayvn-bash$|#!/usr/bin/env bash|" "$f"
               fi
             done
           '';
