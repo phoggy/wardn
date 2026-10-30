@@ -45,7 +45,7 @@
 
         wardn = pkgs.stdenv.mkDerivation {
           pname = "wardn";
-          version = "0.1.0";
+          version = "0.1.1";
           src = self;
 
           nativeBuildInputs = [ pkgs.makeWrapper ];
@@ -110,7 +110,7 @@ EOF
         # Minimal restore package
         wardnRestore = pkgs.stdenv.mkDerivation {
           pname = "wardn-restore";
-          version = "0.1.0";
+          version = "0.1.1";
           src = self;
 
           nativeBuildInputs = [ pkgs.makeWrapper ];
