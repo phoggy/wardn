@@ -8,21 +8,23 @@
 #
 # · USAGE
 #
-#   newVaultBackup -i PATH (-r RECIPIENT | -R PATH)... -n NAME -o DIR SOURCE
+#   newVaultBackup -i PATH (-r RECIPIENT | -R PATH)... -n NAME [-z ZONE] -o DIR SOURCE
 #
 #   -i, --identity PATH        The valt key file used to sign the backup.
 #   -r, --recipient RECIPIENT  Encrypt to the specified RECIPIENT (age public key). Can be repeated.
 #   -R, --recipient-file PATH  Encrypt to the recipients in PATH, e.g. a valt .pub file. Can be repeated.
 #   -n, --name NAME            The backup file name prefix; a timestamp is appended.
+#   -z, --zone ZONE            The time zone for the timestamp: 'local', 'UTC' or a name such as 'America/Los_Angeles'
+#                              (default: local).
 #   -o, --output-dir DIR       The directory to write the backup to.
 #   SOURCE (dir)               The directory whose contents are backed up.
 
 newVaultBackup() {
-    local -a archiveArgs=()
+    local -a archiveArgs=(-z local)
     local sourceDir=''
     while (( $# )); do
         case "$1" in
-            -i | --identity | -r | --recipient | -R | --recipient-file | -n | --name | -o | --output-dir)
+            -i | --identity | -r | --recipient | -R | --recipient-file | -n | --name | -z | --zone | -o | --output-dir)
                 archiveArgs+=("$1" "$2"); shift ;;
             -*) invalidArgs "unknown option: $1" ;;
             *) [[ -z ${sourceDir} ]] || invalidArgs "unexpected argument: $1"; sourceDir="$1" ;;

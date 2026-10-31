@@ -8,7 +8,7 @@ usage() {
     echo
     show bold "Create a backup of a Bitwarden vault or restore a vault from one, as a" cyan "valt" bold "secure archive."
     echo
-    show "Usage:" bold blue "${scriptName}" "[backup] [-i IDENTITY] [-r RECIPIENT]... [-R PATH]... [--no-self] [-b BACKUP_DIR]"
+    show "Usage:" bold blue "${scriptName}" "[backup] [-i IDENTITY] [-r RECIPIENT]... [-R PATH]... [--no-self] [-b BACKUP_DIR] [-z ZONE]"
     show "      " bold blue "${scriptName}" "restore BACKUP_FILE [-i IDENTITY]"
     echo
     echo "The Bitwarden CLI is used to access the vault. Login/unlock requires user input: credentials are never stored."
@@ -39,6 +39,8 @@ usage() {
     echo "    --no-self                    Do not include your own public key as a recipient."
     echo "    -b, --backup-dir PATH        Use the secure directory at PATH to store the encrypted backup."
     echo "    -p, --prefix PREFIX          Set a prefix for the backup file name."
+    echo "    -z, --zone ZONE              The time zone for the timestamp in the backup file name: 'local', 'UTC' or a name"
+    echo "                                 such as 'America/Los_Angeles' (default: local, the system time zone)."
     show "    -u, --url URL                Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" glue ")"
     echo "    -l, --login                  Force full login even if API key environment variables are set."
     showCommonOptions 33 true true envVars
@@ -75,6 +77,7 @@ init() {
     )
 
     namePrefix="${WARDN_BACKUP_PREFIX}"
+    timeZone='local'
     vaultUrl=
     restoreFile=
     suppliedTempDir=
@@ -112,6 +115,7 @@ init() {
             --no-self) noSelf=1 ;;
             -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
             -p | --prefix) shift; namePrefix="${1}" ;;
+            -z | --zone) shift; timeZone="${1}"; timeStamp "${timeZone}" > /dev/null ;;
             -u | --url) shift; vaultUrl="${1}" ;;
             -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION WARDN_DEV_BW_PWD ;;
             --update) updateCLI; exit 0 ;;
@@ -425,7 +429,7 @@ backupVault() {
 
     debug "creating secure archive, recipients=${recipients[*]}"
     local backupFile
-    backupFile="${ newVaultBackup -i "${identityFile}" "${recipients[@]}" -n "${backupName}" -o "${backupDir}" "${secureWorkDir}"; }" || fail
+    backupFile="${ newVaultBackup -i "${identityFile}" "${recipients[@]}" -n "${backupName}" -z "${timeZone}" -o "${backupDir}" "${secureWorkDir}"; }" || fail
     local size; size=${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }
 
     if (( attachmentsCount > 0 )); then

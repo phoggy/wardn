@@ -4,6 +4,7 @@ main() {
     init "$@"
 
     testBackupRoundTrip
+    testBackupTimeZone
     testLegacyBackupRestores
     testIsLegacyVaultBackup
     testExtractWithWrongKeyFails
@@ -52,12 +53,19 @@ testBackupRoundTrip() {
     local backup; backup="${ newVaultBackup -i "${keyFile}" -R "${pubFile}" -n test-backup -o "${backupDir}" "${vaultDir}"; }"
     assertFile "${backup}"
     assertFile "${backup}.pub"
-    [[ ${backup} == "${backupDir}"/test-backup-*.valt ]] || fail "unexpected backup name: ${backup}"
+    [[ ${backup} == "${backupDir}"/test-backup-*_"${ date '+%Z'; }".valt ]] || fail "backup name must use the local time zone: ${backup}"
     assertFalse "a new backup must not be legacy" isLegacyVaultBackup "${backup}"
 
     local restoreDir; restoreDir="${ makeTempDir; }"
     extractVaultBackup -i "${keyFile}" -o "${restoreDir}" "${backup}" > /dev/null 2>&1 || fail "extract failed"
     assertVaultRestored "${restoreDir}"
+}
+
+testBackupTimeZone() {
+    local vaultDir; newVaultDir vaultDir
+    local backupDir; backupDir="${ makeTempDir; }"
+    local backup; backup="${ newVaultBackup -i "${keyFile}" -R "${pubFile}" -n test-backup -z UTC -o "${backupDir}" "${vaultDir}"; }"
+    [[ ${backup} == "${backupDir}"/test-backup-*_UTC.valt ]] || fail "-z UTC must be used: ${backup}"
 }
 
 # A backup written the way wardn did before it used valt archives: a gzipped tar of a named directory, encrypted with age.
