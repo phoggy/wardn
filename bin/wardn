@@ -33,7 +33,7 @@ usage() {
     echo
     echo "    -t, --temp-dir PATH          Use the directory at PATH for temporary storage."
     echo "    -i, --identity PATH          Your valt private key file, used to sign backups and to restore them (default:"
-    show "                                 WARDN_IDENTITY, or" blue "${ tildePath "${defaultIdentityFile}"; }" glue ")."
+    show "                                 WARDN_IDENTITY, or valt's default key:" blue "${ tildePath "${defaultIdentityFile}"; }" glue ")."
     echo "    -r, --recipient RECIPIENT    Also encrypt to the specified RECIPIENT (age public key). May be repeated."
     echo "    -R, --recipients-file PATH   Also encrypt to the recipients listed at PATH, e.g. a valt .pub file. May be repeated."
     echo "    --no-self                    Do not include your own public key as a recipient."
@@ -59,7 +59,7 @@ main() {
 
 init() {
     declare -gr valtProjectUrl='https://github.com/phoggy/valt'
-    declare -gr defaultIdentityFile="${ configDirPath -p valt "valt.${valtPrivateKeySuffix}"; }"
+    declare -gr defaultIdentityFile="${ defaultValtKeyFile; }"
     declare -gr defaultServerUrl='https://vault.bitwarden.com'
     declare -gr vaultFileName='vault.json'
     declare -gr importVaultFileName='import-vault.json'
