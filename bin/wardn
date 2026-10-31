@@ -6,20 +6,21 @@
 # shellcheck disable=SC2120
 usage() {
     echo
-    show bold "Create a backup of a Bitwarden vault or restore a vault from one, secured by an" cyan "Age" bold "public key pair."
+    show bold "Create a backup of a Bitwarden vault or restore a vault from one, as a" cyan "valt" bold "secure archive."
     echo
-    show "Usage:" bold blue "${scriptName}" "[backup] (-r RECIPIENT | -R PATH)... [-b BACKUP_DIR]"
-    show "      " bold blue "${scriptName}" "restore BACKUP_FILE -i IDENTITY"
+    show "Usage:" bold blue "${scriptName}" "[backup] [-i IDENTITY] [-r RECIPIENT]... [-R PATH]... [--no-self] [-b BACKUP_DIR]"
+    show "      " bold blue "${scriptName}" "restore BACKUP_FILE [-i IDENTITY]"
     echo
     echo "The Bitwarden CLI is used to access the vault. Login/unlock requires user input: credentials are never stored."
     echo "Using an API key simplifies login, requiring only master password input rather than full credentials. This is"
     echo "enabled by setting the BW_CLIENTID and BW_CLIENTSECRET environment variables, for details see"
     show blue "https://bitwarden.com/help/personal-api-key/" glue "."
     echo
-    show "Backup files are encrypted with" cyan "Age" "public keys — see" blue "${ageProjectUrl}" "for details on features"   # TODO: valt keys !!!
-    show "and key creation. In the" cyan "Age" "system, a public key is called a 'recipient' and a private key is called an"
-    show "'identity'. Identities/private keys" bold italic "should" "be protected by a strong password for this use case, and a copy"
-    show "of both the key and password should be stored offline in" italic "at least" "one secure location."
+    show "Backups are valt secure archives (see" blue "${valtProjectUrl}" glue "): encrypted with" cyan "age" "and signed with your valt"
+    show "key, so that tampering is detected on restore. Your own public key (the .pub file next to the identity) is always a"
+    show "recipient unless --no-self is given; create a valt key pair with" blue "valt keys" glue ". A public companion"
+    echo "(BACKUP_FILE.pub) that is safe to share is also created. Backups made by earlier versions of wardn (age encrypted"
+    echo "tar files) can still be restored, with any age identity."
     echo
     show bold green "Note" "A temporary directory is required during both operations, and" italic "unencrypted" "vault data will be stored there."
     echo "These files will be deleted by this script; however, file recovery software may still be able to read them long"
@@ -31,12 +32,14 @@ usage() {
     echo "Options:"
     echo
     echo "    -t, --temp-dir PATH          Use the directory at PATH for temporary storage."
-    echo "    -r, --recipient RECIPIENT    Encrypt to the specified RECIPIENT (public key). May be repeated."
-    echo "    -R, --recipients-file PATH   Encrypt to the recipients (public keys) listed at PATH. May be repeated."
+    echo "    -i, --identity PATH          Your valt private key file, used to sign backups and to restore them (default:"
+    show "                                 WARDN_IDENTITY, or" blue "${ tildePath "${defaultIdentityFile}"; }" glue ")."
+    echo "    -r, --recipient RECIPIENT    Also encrypt to the specified RECIPIENT (age public key). May be repeated."
+    echo "    -R, --recipients-file PATH   Also encrypt to the recipients listed at PATH, e.g. a valt .pub file. May be repeated."
+    echo "    --no-self                    Do not include your own public key as a recipient."
     echo "    -b, --backup-dir PATH        Use the secure directory at PATH to store the encrypted backup."
     echo "    -p, --prefix PREFIX          Set a prefix for the backup file name."
     show "    -u, --url URL                Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" glue ")"
-    echo "    -i, --identity-file PATH     Restore using the identity (private key) file at PATH. May be repeated."
     echo "    -l, --login                  Force full login even if API key environment variables are set."
     showCommonOptions 33 true true envVars
     bye "${@}"
@@ -53,9 +56,9 @@ main() {
 }
 
 init() {
-    declare -gr ageProjectUrl='https://github.com/FiloSottile/age'
+    declare -gr valtProjectUrl='https://github.com/phoggy/valt'
+    declare -gr defaultIdentityFile="${ configDirPath -p valt "valt.${valtPrivateKeySuffix}"; }"
     declare -gr defaultServerUrl='https://vault.bitwarden.com'
-    declare -gr backupFileSuffix='valt'
     declare -gr vaultFileName='vault.json'
     declare -gr importVaultFileName='import-vault.json'
     declare -gr attachmentsDirName='attachments'
@@ -66,14 +69,13 @@ init() {
         ['BW_CLIENTSECRET']="Bitwarden API key secret."
         ['WARDN_BACKUP_DIR']="Default backup destination directory."
         ['WARDN_BACKUP_PREFIX']="Default backup file name prefix."
-        ['WARDN_RECIPIENT']="Default recipient. May be a path to a recipients file."
-        ['WARDN_IDENTITY']="Default identity file."
+        ['WARDN_RECIPIENT']="Additional recipient. May be a path to a recipients file."
+        ['WARDN_IDENTITY']="Default identity (valt private key) file."
         ['WARDN_SECURE_TEMP_DIR']="Default secure temp directory. Use '@' to select the rayvn temp directory."
     )
 
     namePrefix="${WARDN_BACKUP_PREFIX}"
     vaultUrl=
-    backupFile=
     restoreFile=
     suppliedTempDir=
 
@@ -96,11 +98,8 @@ init() {
         fi
     fi
 
-    identities=()
-    if [[ -n "${WARDN_IDENTITY}" ]]; then
-        assertFile "${WARDN_IDENTITY}"
-        identities=('-i' "${WARDN_IDENTITY}")
-    fi
+    identityFile="${WARDN_IDENTITY:-${defaultIdentityFile}}"
+    noSelf=0
 
     while (( $# > 0 )); do
         case "${1}" in
@@ -109,7 +108,8 @@ init() {
             -t | --temp-dir) shift; setDirVar suppliedTempDir "${1}" "secure temp dir path" ;;
             -r | --recipient) shift; recipients+=('-r' "${1}") ;;
             -R | --recipients-file) shift; assertFile "${1}" "recipients file"; recipients+=('-R' "${1}") ;;
-            -i | --identity-file) shift; assertFile "${1}" "identity file"; identities+=('-i' "${1}") ;;
+            -i | --identity | --identity-file) shift; identityFile="${1}" ;;
+            --no-self) noSelf=1 ;;
             -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
             -p | --prefix) shift; namePrefix="${1}" ;;
             -u | --url) shift; vaultUrl="${1}" ;;
@@ -134,24 +134,24 @@ init() {
 
     [[ -n ${vaultUrl} ]] || vaultUrl="${defaultServerUrl}"
 
+    [[ -f ${identityFile} ]] || usage "identity file not found: ${ tildePath "${identityFile}"; } (create one with 'valt keys')"
+
     if [[ -z ${restoreFile} ]]; then
 
-        # backup
+        # backup: your own public key is a recipient unless --no-self
 
-        (( ${#recipients[@]} )) || usage "one or more recipients required"
-        [[ -n ${namePrefix} ]] || namePrefix="${USER}"
-        declare -gr backupName="${namePrefix}-backup-${ timeStamp; }"
-
-        if [[ -n ${backupDir} ]]; then
-            backupFile="${backupDir}/${backupName}.${backupFileSuffix}"
-        else
-            backupFile="${backupName}.${backupFileSuffix}"
+        if (( ! noSelf )); then
+            local selfPublicKey="${identityFile%.${valtPrivateKeySuffix}}.${valtPublicKeySuffix}"
+            [[ -f ${selfPublicKey} ]] || usage "public key not found: ${ tildePath "${selfPublicKey}"; } (or use --no-self)"
+            recipients+=('-R' "${selfPublicKey}")
         fi
+        (( ${#recipients[@]} )) || usage "--no-self requires at least one --recipient or --recipients-file"
+        [[ -n ${namePrefix} ]] || namePrefix="${USER}"
+        declare -gr backupName="${namePrefix}-backup"
     else
 
         # restore
 
-        (( ${#identities[@]} )) || usage "one or more identities required"
         declare -gr backupName="${ basename ${restoreFile} | cut -d'.' -f1-3; }"
     fi
 
@@ -421,12 +421,12 @@ backupVault() {
         done
     done
 
-    debug "calling tar & age, recipients=${recipients[*]}"
-    assertCommand --transform _stripBracketLines --error "Failed to encrypt backup" \
-        eval 'tar cz "${backupName}" | age "${recipients[@]}" > "${backupFile}"'
-    local size; size=${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }
+    stopSpinner spinnerId "${doneCheck}" # before creating the archive, which prompts for the key passphrase
 
-    stopSpinner spinnerId "${doneCheck}"
+    debug "creating secure archive, recipients=${recipients[*]}"
+    local backupFile
+    backupFile="${ newVaultBackup -i "${identityFile}" "${recipients[@]}" -n "${backupName}" -o "${backupDir}" "${secureWorkDir}"; }" || fail
+    local size; size=${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }
 
     if (( attachmentsCount > 0 )); then
         echo "Backed up ${itemsCount} items and ${attachmentsCount} attachments. ${successCheckMark}"
@@ -435,7 +435,8 @@ backupVault() {
     fi
     logoutFromVault
     echo
-    show bold green "Vault backed up to" "${backupFile}" bold green "size:" bold "${size}"
+    show bold green "Vault backed up to" "${ tildePath "${backupFile}"; }" bold green "size:" bold "${size}"
+    show "Public companion (safe to share):" "${ tildePath "${backupFile}.pub"; }"
 }
 
 restoreVault() {
@@ -490,13 +491,10 @@ restoreVault() {
 
     echo "Preparing backup. You will be prompted for your private key passphrase if encrypted."
     cd "${secureWorkDir}" || fail
-    local tarFile="backup.tar"
-    age -d "${identities[@]}" -o "${tarFile}" "${backupFile}" 2> >(errorStream) || fail
+    extractVaultBackup -i "${identityFile}" -o "${secureWorkDir}" "${backupFile}" || fail
 
     local spinnerId
     startSpinner spinnerId "Preparing import" # don't start until here, since the above will likely prompt for a password
-    tar -xf "${tarFile}" --strip-components=1 || fail
-    rm "${tarFile}" || fail
 
     # Get vault and grab some stats from it (STEPS 2 & 3)
 
@@ -748,6 +746,6 @@ updateCLI () { # TODO: harden and expose command!
 
 # Boot rayvn with initial required libraries
 
-source rayvn.up 'rayvn/spinner' 'rayvn/terminal' 'rayvn/dependencies' || exit
+source rayvn.up 'rayvn/spinner' 'rayvn/terminal' 'rayvn/dependencies' 'valt/keys' 'wardn/backup' || exit
 
 main "${@}"

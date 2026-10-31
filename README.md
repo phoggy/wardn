@@ -74,5 +74,9 @@ nix run github:phoggy/wardn#restore
 
 ## Usage
 
-- **backup** - Export and encrypt your Bitwarden vault
-- **restore** - Decrypt and import a vault backup
+- **backup** - Export your Bitwarden vault to a [valt](https://github.com/phoggy/valt) secure archive: encrypted with
+  age and signed with your valt key. Create a key pair first with `valt keys`.
+- **restore** - Verify, decrypt and import a vault backup. Backups made by earlier versions of wardn (age encrypted tar
+  files) can still be restored.
+
+Run `wardn --help` for options.
