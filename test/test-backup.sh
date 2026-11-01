@@ -54,7 +54,7 @@ testBackupRoundTrip() {
     local backupDir; backupDir="${ makeTempDir; }"
     local backup; backup="${ newVaultBackup -i "${keyFile}" -R "${pubFile}" -n test-backup -o "${backupDir}" "${vaultDir}"; }"
     assertFile "${backup}"
-    assertFile "${backup}.pub"
+    assertFileDoesNotExist "${backup}.pub"
     [[ ${backup} == "${backupDir}"/test-backup-*_"${ date '+%Z'; }".valt ]] || fail "backup name must use the local time zone: ${backup}"
     assertFalse "a new backup must not be legacy" isLegacyVaultBackup "${backup}"
 

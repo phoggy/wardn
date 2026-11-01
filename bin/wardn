@@ -18,9 +18,8 @@ usage() {
     echo
     show "Backups are valt secure archives (see" blue "${valtProjectUrl}" glue "): encrypted with" cyan "age" "and signed with your valt"
     show "key, so that tampering is detected on restore. Your own public key (the .pub file next to the identity) is always a"
-    show "recipient unless --no-self is given; create a valt key pair with" blue "valt keys" glue ". A public companion"
-    echo "(BACKUP_FILE.pub) that is safe to share is also created. Backups made by earlier versions of wardn (age encrypted"
-    echo "tar files) can still be restored, with any age identity."
+    show "recipient unless --no-self is given; create a valt key pair with" blue "valt keys" glue ". Backups made by earlier versions"
+    echo "of wardn (age encrypted tar files) can still be restored, with any age identity."
     echo
     show bold green "Note" "Both operations store" italic "unencrypted" "vault data temporarily. It is kept in memory (RAM backed storage)"
     show "rather than on disk, so that it cannot be recovered after it is deleted: storage set up by" blue "rayvn-tmp" glue ", /dev/shm on"
@@ -390,7 +389,6 @@ backupVault() {
     logoutFromVault
     echo
     show bold green "Vault backed up to" "${ tildePath "${backupFile}"; }" bold green "size:" bold "${size}"
-    show "Public companion (safe to share):" "${ tildePath "${backupFile}.pub"; }"
 }
 
 restoreVault() {

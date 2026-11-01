@@ -4,7 +4,8 @@
 # Use via: require 'wardn/backup'
 
 # ◇ Create a vault backup: a valt secure archive (signed and encrypted) of the contents of a directory. The archive file
-#   path is written to standard output; a public companion (same path plus ".pub") is also created.
+#   path is written to standard output. No public companion (.pub) is created: the backup is restored and verified with
+#   your own key.
 #
 # · USAGE
 #
@@ -34,7 +35,7 @@ newVaultBackup() {
     [[ -n ${sourceDir} ]] || invalidArgs "source directory required"
     assertDirectory "${sourceDir}"
 debugVar archiveArgs sourceDir
-    newSecureArchive -C "${sourceDir}" . "${archiveArgs[@]}" --no-mac-metadata # exported data has no metadata worth keeping
+    newSecureArchive -C "${sourceDir}" . "${archiveArgs[@]}" --no-mac-metadata --no-public # exported data has no metadata worth keeping
 }
 
 # ◇ Extract a vault backup into a directory. A valt secure archive has both its signatures verified before its contents
