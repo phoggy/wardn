@@ -6,6 +6,7 @@ main() {
     testBackupRoundTrip
     testBackupTimeZone
     testBackupRejectsMixedRecipients
+    testBackupIgnoresDuplicateRecipients
     testLegacyBackupRestores
     testIsLegacyVaultBackup
     testExtractWithWrongKeyFails
@@ -77,6 +78,14 @@ testBackupRejectsMixedRecipients() {
     local output; output="${ ( newVaultBackup -i "${keyFile}" -R "${pubFile}" -r "${classic}" -n test-backup -o "${backupDir}" "${vaultDir}" ) 2>&1; }"
     assertNotEqual 0 $? "mixing post-quantum and classic recipients must fail"
     assertContains "Cannot encrypt to both post-quantum keys" "${output}"
+}
+
+testBackupIgnoresDuplicateRecipients() {
+    local vaultDir; newVaultDir vaultDir
+    local backupDir; backupDir="${ makeTempDir; }"
+    local backup; backup="${ newVaultBackup -i "${keyFile}" -R "${pubFile}" -R "${pubFile}" -n test-backup -o "${backupDir}" "${vaultDir}" 2>&1; }"
+    assertEqual 0 $? "a duplicate recipient must be ignored: ${backup}"
+    assertFile "${backup}"
 }
 
 # A backup written the way wardn did before it used valt archives: a gzipped tar of a named directory, encrypted with age.
