@@ -20,7 +20,7 @@
 #   SOURCE (dir)               The directory whose contents are backed up.
 
 newVaultBackup() {
-    local -a archiveArgs=(-z local)
+    local -a archiveArgs=() # newSecureArchive's own defaults apply, e.g. the local time zone
     local sourceDir=''
     while (( $# )); do
         case "$1" in
@@ -33,6 +33,7 @@ newVaultBackup() {
     done
     [[ -n ${sourceDir} ]] || invalidArgs "source directory required"
     assertDirectory "${sourceDir}"
+debugVar archiveArgs sourceDir
     newSecureArchive -C "${sourceDir}" . "${archiveArgs[@]}" --no-mac-metadata # exported data has no metadata worth keeping
 }
 
