@@ -11,4 +11,5 @@ wardn backs up Bitwarden vaults (using the Bitwarden CLI, `bw`) as valt secure a
 
 - Archive creation and extraction are in `lib/backup.sh` (`wardn/backup`), which wraps `valt/archive` and can be tested
   without a Bitwarden login. Restore also accepts legacy backups (age encrypted tar files), detected by their age header.
-- Backup and restore need a valt key (`-i`, default `WARDN_IDENTITY` or valt's `valt.key`).
+- Backup and restore need a valt key (`-i`, default valt's default key; see `valt default-key`), which is always a
+  recipient unless `--no-self`.

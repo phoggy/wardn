@@ -33,7 +33,7 @@ usage() {
     echo
     echo "    -t, --temp-dir PATH          Use the directory at PATH for temporary storage."
     echo "    -i, --identity PATH          Your valt private key file, used to sign backups and to restore them (default:"
-    show "                                 WARDN_IDENTITY, or valt's default key:" blue "${ tildePath "${defaultIdentityFile}"; }" glue ")."
+    show "                                 valt's default key, see 'valt default-key':" blue "${ tildePath "${defaultIdentityFile}"; }" glue ")."
     echo "    -r, --recipient RECIPIENT    Also encrypt to the specified RECIPIENT (age public key). May be repeated."
     echo "    -R, --recipients-file PATH   Also encrypt to the recipients listed at PATH, e.g. a valt .pub file. May be repeated."
     echo "    --no-self                    Do not include your own public key as a recipient."
@@ -70,8 +70,6 @@ init() {
         ['BW_CLIENTSECRET']="Bitwarden API key secret."
         ['WARDN_BACKUP_DIR']="Default backup destination directory."
         ['WARDN_BACKUP_PREFIX']="Default backup file name prefix."
-        ['WARDN_RECIPIENT']="Additional recipient. May be a path to a recipients file."
-        ['WARDN_IDENTITY']="Default identity (valt private key) file."
         ['WARDN_SECURE_TEMP_DIR']="Default secure temp directory. Use '@' to select the rayvn temp directory."
     )
 
@@ -91,16 +89,16 @@ init() {
         fi
     fi
 
-    recipients=()
-    if [[ -n "${WARDN_RECIPIENT}" ]]; then
-        if [[ -f ${WARDN_RECIPIENT} ]]; then
-            recipients=('-R' "${WARDN_RECIPIENT}")
-        else
-            recipients=('-r' "${WARDN_RECIPIENT}")
-        fi
-    fi
+    # WARDN_RECIPIENT and WARDN_IDENTITY were replaced by your valt key always being a recipient, and valt's default
+    # key: say so rather than silently ignore them
 
-    identityFile="${WARDN_IDENTITY:-${defaultIdentityFile}}"
+    [[ -n ${WARDN_RECIPIENT:-} ]] && warn "WARDN_RECIPIENT is no longer used: your valt key is always a recipient;" \
+        "use -r or -R for others."
+    [[ -n ${WARDN_IDENTITY:-} ]] && warn "WARDN_IDENTITY is no longer used: use 'valt default-key' to set the default" \
+        "key, or -i."
+
+    recipients=()
+    identityFile="${defaultIdentityFile}"
     noSelf=0
 
     while (( $# > 0 )); do
