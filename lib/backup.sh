@@ -33,7 +33,7 @@ newVaultBackup() {
     done
     [[ -n ${sourceDir} ]] || invalidArgs "source directory required"
     assertDirectory "${sourceDir}"
-    newSecureArchive -C "${sourceDir}" . "${archiveArgs[@]}"
+    newSecureArchive -C "${sourceDir}" . "${archiveArgs[@]}" --no-mac-metadata # exported data has no metadata worth keeping
 }
 
 # ◇ Extract a vault backup into a directory. A valt secure archive has both its signatures verified before its contents
