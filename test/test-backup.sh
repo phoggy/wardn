@@ -5,6 +5,7 @@ main() {
 
     testBackupRoundTrip
     testBackupTimeZone
+    testBackupRejectsMixedRecipients
     testLegacyBackupRestores
     testIsLegacyVaultBackup
     testExtractWithWrongKeyFails
@@ -66,6 +67,16 @@ testBackupTimeZone() {
     local backupDir; backupDir="${ makeTempDir; }"
     local backup; backup="${ newVaultBackup -i "${keyFile}" -R "${pubFile}" -n test-backup -z UTC -o "${backupDir}" "${vaultDir}"; }"
     [[ ${backup} == "${backupDir}"/test-backup-*_UTC.valt ]] || fail "-z UTC must be used: ${backup}"
+}
+
+testBackupRejectsMixedRecipients() {
+    local vaultDir; newVaultDir vaultDir
+    local backupDir; backupDir="${ makeTempDir; }"
+    age-keygen -o "${backupDir}/classic.txt" 2> /dev/null || fail
+    local classic; classic="${ age-keygen -y "${backupDir}/classic.txt"; }"
+    local output; output="${ ( newVaultBackup -i "${keyFile}" -R "${pubFile}" -r "${classic}" -n test-backup -o "${backupDir}" "${vaultDir}" ) 2>&1; }"
+    assertNotEqual 0 $? "mixing post-quantum and classic recipients must fail"
+    assertContains "Cannot encrypt to both post-quantum keys" "${output}"
 }
 
 # A backup written the way wardn did before it used valt archives: a gzipped tar of a named directory, encrypted with age.

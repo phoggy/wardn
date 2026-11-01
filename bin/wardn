@@ -149,6 +149,7 @@ init() {
             recipients+=('-R' "${selfPublicKey}")
         fi
         (( ${#recipients[@]} )) || usage "--no-self requires at least one --recipient or --recipients-file"
+        assertCompatibleRecipients "${recipients[@]}" # before logging in and exporting the vault
         [[ -n ${namePrefix} ]] || namePrefix="${USER}"
         declare -gr backupName="${namePrefix}-backup"
     else
