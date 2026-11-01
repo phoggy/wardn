@@ -58,7 +58,6 @@ main() {
 }
 
 init() {
-    declare -gr valtProjectUrl='https://github.com/phoggy/valt'
     declare -gr defaultIdentityFile="${ defaultValtKeyFile; }"
     declare -gr defaultServerUrl='https://vault.bitwarden.com'
     declare -gr vaultFileName='vault.json'

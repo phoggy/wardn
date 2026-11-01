@@ -69,11 +69,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793382431,
-        "narHash": "sha256-86agqYqbo9eyY5q4/B9Xgqo6Ynn6lfbc7ZjgtvNjiPY=",
+        "lastModified": 1793554934,
+        "narHash": "sha256-iKG+pikcHCuMBnFnZHEsdJ+yX7NoeF9vZkcAzMrw/7M=",
         "owner": "phoggy",
         "repo": "rayvn",
-        "rev": "6f42921d986d9e5749b4a46916587cb7747fdd2e",
+        "rev": "1ba4af9595336f9cd5f11eca4aec6a48faeb35a2",
         "type": "github"
       },
       "original": {
@@ -119,11 +119,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793382470,
-        "narHash": "sha256-W0Up5a5yVNYTdPfj4SfJgAiH0QdvhJFz/wq5zi2PHrE=",
+        "lastModified": 1793555341,
+        "narHash": "sha256-4sKnbuvF61vFUn9ZbPEFJDmzlNq7U7y4SBIRUEUW2k8=",
         "owner": "phoggy",
         "repo": "valt",
-        "rev": "c814746993024bc940d4fe1d18d446c965f920bb",
+        "rev": "9b74b7a84eb14d0b2fce740468912e16df80e408",
         "type": "github"
       },
       "original": {
