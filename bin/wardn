@@ -607,22 +607,27 @@ addNote() {  # STEP 9
 
 uploadAttachments() { # STEP 10
     local -n idMapRef=$1
-    local oldId attachmentFile total=0 uploaded=0
-    for oldId in "${!idMapRef[@]}"; do
-        for attachmentFile in "${attachmentsDirName}/${oldId}"/*; do
-            (( total++ ))
-        done
-    done
-    (( total )) || return 0
+    local oldId attachmentFile uploaded=0
+    local -a attachmentFiles=()
+
+    # Collect the files with find rather than a glob, which would skip names starting with '.'
 
     for oldId in "${!idMapRef[@]}"; do
-        debugVars oldId idMapRef["${oldId}"]
-        for attachmentFile in "${attachmentsDirName}/${oldId}"/*; do
-            debugVars attachmentFile
-            showProgress "Uploading attachments" $(( uploaded + 1 )) ${total}
-            bw create attachment --file "${attachmentFile}" --itemid "${idMapRef[${oldId}]}" > /dev/null || fail
-            (( uploaded++ ))
-        done
+        while IFS= read -r -d '' attachmentFile; do
+            attachmentFiles+=("${oldId}" "${attachmentFile}")
+        done < <(find "${attachmentsDirName}/${oldId}" -mindepth 1 -maxdepth 1 -type f -print0)
+    done
+    local total=$(( ${#attachmentFiles[@]} / 2 ))
+    (( total )) || return 0
+
+    local i
+    for (( i = 0; i < ${#attachmentFiles[@]}; i += 2 )); do
+        oldId="${attachmentFiles[${i}]}"
+        attachmentFile="${attachmentFiles[$(( i + 1 ))]}"
+        debugVars oldId attachmentFile
+        showProgress "Uploading attachments" $(( uploaded + 1 )) ${total}
+        bw create attachment --file "${attachmentFile}" --itemid "${idMapRef[${oldId}]}" > /dev/null || fail
+        (( uploaded++ ))
     done
     endProgress "Uploaded ${ countOf ${uploaded} attachment; }${doneCheck}"
 }
