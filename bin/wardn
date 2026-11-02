@@ -495,7 +495,7 @@ restoreVault() {
     echo "A note named '${restoreNoteName}' was added to your vault with details of this operation."
     echo
     local suffix; suffix="${ (( attachmentsCount > 0 )) && echo ' and attachments.' || echo '.'; }"
-    echo "You will likely need to logout/login to see all restored items${suffix}"
+    echo "You may need to logout/login to see all restored items${suffix}"
 }
 
 nextSpinner() {
