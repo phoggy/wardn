@@ -40,6 +40,7 @@
           pkgs.coreutils
           pkgs.gnutar
           pkgs.xz
+          pkgs.unzip
           pkgs.minisign
           pkgs.pdfcpu
           pkgs.curl
