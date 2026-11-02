@@ -415,8 +415,8 @@ restoreVault() {
     #       a. find its index in ${oldVault}, and the newItem in ${newVault} with that index prefix
     #       b. update ${idMap} with ${oldId} -> ${newId} for attachment processing
     #       c. edit item ${newId} to strip the index prefix from its name
-    #  9. create note item in target with stats
-    # 10. restore attachments using ${idMap}
+    #  9. restore attachments using ${idMap}
+    # 10. create note item in target with stats
     #
     # NOTE: Restoring the original creation/revision/deleted dates would require editing every item, and at present
     # an edit with any of the original dates fails (https://github.com/bitwarden/clients/issues/13429).
@@ -477,15 +477,15 @@ restoreVault() {
 
     (( ${#attachmentItemIds[@]} )) && restoreAttachmentItems oldVault newVault attachmentItemIds idMap
 
-    # Add a note (STEP 9)
+    # Process attachments if we have any (STEP 9)
+
+    (( ${#idMap[@]} )) && uploadAttachments idMap
+
+    # Add a note, once everything else is restored (STEP 10)
 
     startSpinner spinnerId "Adding restore note"
     addNote "${backupFile}" ${itemsCount} ${foldersCount} ${attachmentsCount}
     stopSpinner spinnerId "${doneCheck}"
-
-    # Process attachments if we have any (STEP 10)
-
-    (( ${#idMap[@]} )) && uploadAttachments idMap
 
     logoutFromVault
 
@@ -586,7 +586,7 @@ restoreAttachmentItems() { # STEP 8
     endProgress "Prepared ${ countOf ${total} item; } for attachments${doneCheck}"
 }
 
-addNote() {  # STEP 9
+addNote() {  # STEP 10
     local source="${1}"
     local items=$2
     local folders=$3
@@ -605,7 +605,7 @@ addNote() {  # STEP 9
     echo ${item} | bwEncode | bw create item > /dev/null || fail
 }
 
-uploadAttachments() { # STEP 10
+uploadAttachments() { # STEP 9
     local -n idMapRef=$1
     local oldId attachmentFile uploaded=0
     local -a attachmentFiles=()
