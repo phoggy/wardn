@@ -34,7 +34,6 @@ newVaultBackup() {
     done
     [[ -n ${sourceDir} ]] || invalidArgs "source directory required"
     assertDirectory "${sourceDir}"
-debugVar archiveArgs sourceDir
     newSecureArchive -C "${sourceDir}" . "${archiveArgs[@]}" --no-mac-metadata --no-public # exported data has no metadata worth keeping
 }
 
@@ -85,11 +84,11 @@ extractVaultBackup() {
 #   backupFile (file)  The backup file.
 
 isLegacyVaultBackup() {
-    head -c 64 "$1" | LC_ALL=C grep -qa -e '^age-encryption\.org/' -e '^-----BEGIN AGE ENCRYPTED FILE-----'
+    isAgeEncryptedFile "$1"
 }
 
 PRIVATE_CODE="--+-+-----+-++(-++(---++++(---+( ⚠️ BEGIN 'wardn/backup' PRIVATE ⚠️ )+---)++++---)++-)++-+------+-+--"
 
 _init_wardn_backup() {
-    require 'valt/archive'
+    require 'valt/archive' 'valt/decrypt'
 }

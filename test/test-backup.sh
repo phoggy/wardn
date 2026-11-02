@@ -110,6 +110,8 @@ testIsLegacyVaultBackup() {
     age-keygen -o "${dir}/identity.txt" 2> /dev/null || fail
     echo 'secret' | age -a -r "${ age-keygen -y "${dir}/identity.txt"; }" > "${dir}/armored.age" || fail
     assertTrue "an armored age file must be detected as legacy" isLegacyVaultBackup "${dir}/armored.age"
+    local errors; errors="${ isLegacyVaultBackup "${dir}/armored.age" 2>&1 > /dev/null; }"
+    assertEqual '' "${errors}" "the check must not write errors"
     echo 'plain text' > "${dir}/plain.txt"
     assertFalse "a plain file must not be legacy" isLegacyVaultBackup "${dir}/plain.txt"
 }
