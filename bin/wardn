@@ -479,25 +479,21 @@ restoreVault() {
 
     local newVault; newVault="${ bw export --format json --raw; }" || fail
 
+    stopSpinner spinnerId "${doneCheck}"
+
     # Edit each item in the new vault to fix name and copy old dates, building idMap (STEP 8)
 
-    local suffix; suffix="${ (( itemsCount < 10 )) && echo '' || echo ' (this may take some time)'; }"
-
-    nextSpinner spinnerId "${doneCheck}" "Restoring ${itemsCount} items${suffix}"
     restoreItems oldVault newVault oldIds idMap ${itemsCount}
 
     # Add a note (STEP 9)
 
+    startSpinner spinnerId "Adding restore note"
     addNote "${backupFile}" ${itemsCount} ${foldersCount} ${attachmentsCount}
+    stopSpinner spinnerId "${doneCheck}"
 
     # Process attachments if we have any (STEP 10)
 
-    if (( ${attachmentsCount} > 0 )); then
-        nextSpinner spinnerId "${doneCheck}" "Uploading ${attachmentsCount} attachments"
-        uploadAttachments idMap
-    fi
-
-    stopSpinner spinnerId "${doneCheck}"
+    (( attachmentsCount > 0 )) && uploadAttachments idMap ${attachmentsCount}
 
     logoutFromVault
 
@@ -506,7 +502,7 @@ restoreVault() {
     echo
     echo "A note named '${restoreNoteName}' was added to your vault with details of this operation."
     echo
-    suffix="${ (( attachmentsCount > 0 )) && echo ' and attachments.' || echo '.'; }"
+    local suffix; suffix="${ (( attachmentsCount > 0 )) && echo ' and attachments.' || echo '.'; }"
     echo "You will likely need to logout/login to see all restored items${suffix}"
 }
 
@@ -514,6 +510,36 @@ nextSpinner() {
     local idVarName=$1 replacement="$2" message="$3"
     stopSpinner ${idVarName} "${replacement}"
     startSpinner ${idVarName} "${message}"
+}
+
+# Shows "label: count of total" on the current line, replacing what was there. Used instead of a spinner for long
+# loops, since the spinner is drawn by another process and would garble a line we also write to.
+
+showProgress() {
+    local label="$1" count=$2 total=$3
+    cursorToLineStart; eraseToEndOfLine
+    echo -n "${label}: ${count} of ${total}" >&${ttyFd}
+}
+
+# Replaces the progress line with the given text, ending the line.
+
+endProgress() {
+    cursorToLineStart; eraseToEndOfLine
+    echo "$1" >&${ttyFd}
+}
+
+# Prints the count and noun, adding an 's' unless the count is 1, e.g. '1 item', '12 items'.
+
+countOf() {
+    local count=$1 noun="$2"
+    (( count == 1 )) && echo "${count} ${noun}" || echo "${count} ${noun}s"
+}
+
+# Encodes JSON on stdin for bw create/edit. The same as 'bw encode', which only base64 encodes its input, without
+# the few seconds it takes to start bw. GNU base64 wraps lines, so newlines are removed.
+
+bwEncode() {
+    base64 | tr -d '\n'
 }
 
 prefixNamesWithIndex() {   # STEP 4
@@ -540,6 +566,7 @@ restoreItems() { # STEP 8
     local i oldId oldItem newId newItem indexedName name key restoredItem editedItem # cDate rDate dDate
 
     for (( i = 0; i < itemsCount; i++ )); do
+        showProgress "Restoring items" $(( i + 1 )) ${itemsCount}
 
         # Get the oldId and oldItem
 
@@ -578,10 +605,11 @@ restoreItems() { # STEP 8
 
         # Finally, edit the item in the vault to restore it
 
-        editedItem="${ echo "${restoredItem}" | bw encode | bw edit item "${newId}"; }"
+        editedItem="${ echo "${restoredItem}" | bwEncode | bw edit item "${newId}"; }"
         debugJson editedItem "editedItem-${i}"
 
     done
+    endProgress "Restored ${ countOf ${itemsCount} item; }${doneCheck}"
 }
 
 addNote() {  # STEP 9
@@ -589,11 +617,9 @@ addNote() {  # STEP 9
     local items=$2
     local folders=$3
     local attachments=$4
-    local i; i=${ [[ ${items} == 1 ]] && echo item || echo items; }
-    local f; f=${ [[ ${folders} == 1 ]] && echo folder || echo folders; }
-    local a; a=${ [[ ${items} == 1 ]] && echo attachment || echo attachments; }
-    local format='Restored on %s\n\n%d %s, %d %s, %d %s from %s\n'
-    local note; note="${ printf "${format}" "${ date; }" ${items} ${i} ${folders} ${f} ${attachments} ${a} "${source}"; }"
+    local format='Restored on %s\n\n%s, %s, %s from %s\n'
+    local note; note="${ printf "${format}" "${ date; }" "${ countOf ${items} item; }" "${ countOf ${folders} folder; }" \
+        "${ countOf ${attachments} attachment; }" "${source}"; }"
 
     # TODO Add hostname, username, uname, IP, reverse dns... https://iplocation.io/ ip.info ???
 
@@ -602,12 +628,13 @@ addNote() {  # STEP 9
     local temp; temp=${ bw get template item; } || fail
     local name="${restoreNoteName}"
     local item; item=${ echo ${temp} | jq -r --arg nm "${name}" --arg nt "${note}" '.type=2 | .secureNote.type=0 | .name=$nm | .notes=$nt'; }
-    echo ${item} | bw encode | bw create item > /dev/null || fail
+    echo ${item} | bwEncode | bw create item > /dev/null || fail
 }
 
 uploadAttachments() { # STEP 10
     local -n idMapRef=$1
-    local attachmentDir attachmentFile
+    local attachmentsCount=$2
+    local attachmentDir attachmentFile uploaded=0
     pushd "${attachmentsDirName}" > /dev/null || fail
 
     for attachmentDir in ./*; do
@@ -619,10 +646,13 @@ uploadAttachments() { # STEP 10
 
         for attachmentFile in ./*; do
             debugVars attachmentFile
+            showProgress "Uploading attachments" $(( uploaded + 1 )) ${attachmentsCount}
             bw create attachment --file "./${attachmentFile}" --itemid "${newAttachmentItemId}" > /dev/null || fail
+            (( uploaded++ ))
         done
         popd > /dev/null || fail
     done
+    endProgress "Uploaded ${ countOf ${uploaded} attachment; }${doneCheck}"
 }
 
 assertVaultReady() {
