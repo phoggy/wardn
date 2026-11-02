@@ -410,7 +410,7 @@ restoreVault() {
     #  5. for each item in ${oldVault} with attachments, prefix its name with its index number, e.g. "<wardn-12> ".
     #     Used to map item ids independent of export order.
     #  6. import ${oldVault} to target.
-    #  7. if there are attachments, export target vault to ${newVault}
+    #  7. export target vault to ${newVault}, and check that every item and folder was imported
     #  8. for each oldId in ${attachmentItemIds}:
     #       a. find its index in ${oldVault}, and the newItem in ${newVault} with that index prefix
     #       b. update ${idMap} with ${oldId} -> ${newId} for attachment processing
@@ -466,12 +466,18 @@ restoreVault() {
     echo "${oldVault}" > "${importVaultFileName}"
     bw import bitwardenjson "./${importVaultFileName}" > /dev/null || fail
 
-    # Export vault (STEP 7), if needed to map the items with attachments
+    # Export vault (STEP 7), to check the import and to map the items with attachments
 
-    local newVault=''
-    (( ${#attachmentItemIds[@]} )) && { newVault="${ bw export --format json --raw; }" || fail; }
+    local newVault; newVault="${ bw export --format json --raw; }" || fail
 
     stopSpinner spinnerId "${doneCheck}"
+
+    # Check that every item and folder in the backup was imported
+
+    local importedItems; importedItems="${ echo "${newVault}" | jq '.items // [] | length'; }"
+    local importedFolders; importedFolders="${ echo "${newVault}" | jq '.folders // [] | length'; }"
+    (( importedItems == itemsCount )) || warn "${importedItems} of the ${itemsCount} items in the backup were imported."
+    (( importedFolders == foldersCount )) || warn "${importedFolders} of the ${foldersCount} folders in the backup were imported."
 
     # Edit each item with attachments in the new vault to fix its name, building idMap (STEP 8)
 
@@ -479,13 +485,7 @@ restoreVault() {
 
     # Process attachments if we have any (STEP 9)
 
-    local uploadedCount=0
-    (( ${#idMap[@]} )) && uploadAttachments idMap uploadedCount
-
-    # Check that every attachment in the backup was uploaded
-
-    (( uploadedCount < attachmentsCount )) && warn "Only ${uploadedCount} of the ${attachmentsCount} attachments in" \
-        "the backup were uploaded."
+    (( attachmentsCount > 0 )) && uploadAttachments idMap ${attachmentsCount}
 
     # Add a note, once everything else is restored (STEP 10)
 
@@ -613,7 +613,7 @@ addNote() {  # STEP 10
 
 uploadAttachments() { # STEP 9
     local -n idMapRef=$1
-    local -n uploadedRef=$2
+    local backupCount=$2 # all the attachments in the backup, including any for items that were not restored
     local oldId attachmentFile uploaded=0
     local -a attachmentFiles=()
 
@@ -625,7 +625,6 @@ uploadAttachments() { # STEP 9
         done < <(find "${attachmentsDirName}/${oldId}" -mindepth 1 -maxdepth 1 -type f -print0)
     done
     local total=$(( ${#attachmentFiles[@]} / 2 ))
-    (( total )) || return 0
 
     local i
     for (( i = 0; i < ${#attachmentFiles[@]}; i += 2 )); do
@@ -635,9 +634,17 @@ uploadAttachments() { # STEP 9
         showProgress "Uploading attachments" $(( uploaded + 1 )) ${total}
         bw create attachment --file "${attachmentFile}" --itemid "${idMapRef[${oldId}]}" > /dev/null || fail
         (( uploaded++ ))
-        uploadedRef=${uploaded}
     done
-    endProgress "Uploaded ${ countOf ${uploaded} attachment; }${doneCheck}"
+
+    # Check that every attachment in the backup was uploaded
+
+    if (( uploaded < backupCount )); then
+        cursorToLineStart; eraseToEndOfLine
+        warn "Only ${uploaded} of the ${backupCount} attachments in the backup were uploaded."
+    fi
+    if (( uploaded )); then
+        endProgress "Uploaded ${ countOf ${uploaded} attachment; }${doneCheck}"
+    fi
 }
 
 assertVaultReady() {
