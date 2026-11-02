@@ -8,7 +8,7 @@ usage() {
     echo
     show bold "Create a backup of a Bitwarden vault or restore a vault from one, as a" cyan "valt" bold "secure archive."
     echo
-    show "Usage:" bold blue "${scriptName}" "[backup] [-i IDENTITY] [-r RECIPIENT]... [-R PATH]... [--no-self] [-b BACKUP_DIR] [-z ZONE]"
+    show "Usage:" bold blue "${scriptName}" "backup [-i IDENTITY] [-r RECIPIENT]... [-R PATH]... [--no-self] [-b BACKUP_DIR] [-z ZONE]"
     show "      " bold blue "${scriptName}" "restore BACKUP_FILE [-i IDENTITY]"
     echo
     echo "The Bitwarden CLI is used to access the vault. Login/unlock requires user input: credentials are never stored."
@@ -72,6 +72,7 @@ init() {
     timeZone='local'
     vaultUrl=
     restoreFile=
+    operation=
 
     [[ -n ${WARDN_SECURE_TEMP_DIR:-} ]] && warn "WARDN_SECURE_TEMP_DIR is no longer used: RAM backed storage is used for" \
         "the unencrypted vault data whenever possible."
@@ -88,10 +89,12 @@ init() {
     identityFile="${defaultIdentityFile}"
     noSelf=0
 
+    (( $# )) || usage
+
     while (( $# > 0 )); do
         case "${1}" in
-            backup) unset restoreFile ;;
-            restore) shift; setFileVar restoreFile "${1}" ;;
+            backup) operation=backup; unset restoreFile ;;
+            restore) operation=restore; shift; setFileVar restoreFile "${1}" ;;
             -r | --recipient) shift; recipients+=('-r' "${1}") ;;
             -R | --recipients-file) shift; assertFile "${1}" "recipients file"; recipients+=('-R' "${1}") ;;
             -i | --identity | --identity-file) shift; identityFile="${1}" ;;
@@ -110,6 +113,8 @@ init() {
         esac
         shift
     done
+
+    [[ -n ${operation} ]] || usage "Specify backup or restore."
 
     if [[ -z ${backupDir} ]]; then
         if [[ -n ${WARDN_BACKUP_DIR} ]]; then
