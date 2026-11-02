@@ -479,7 +479,13 @@ restoreVault() {
 
     # Process attachments if we have any (STEP 9)
 
-    (( ${#idMap[@]} )) && uploadAttachments idMap
+    local uploadedCount=0
+    (( ${#idMap[@]} )) && uploadAttachments idMap uploadedCount
+
+    # Check that every attachment in the backup was uploaded
+
+    (( uploadedCount < attachmentsCount )) && warn "Only ${uploadedCount} of the ${attachmentsCount} attachments in" \
+        "the backup were uploaded."
 
     # Add a note, once everything else is restored (STEP 10)
 
@@ -607,6 +613,7 @@ addNote() {  # STEP 10
 
 uploadAttachments() { # STEP 9
     local -n idMapRef=$1
+    local -n uploadedRef=$2
     local oldId attachmentFile uploaded=0
     local -a attachmentFiles=()
 
@@ -628,6 +635,7 @@ uploadAttachments() { # STEP 9
         showProgress "Uploading attachments" $(( uploaded + 1 )) ${total}
         bw create attachment --file "${attachmentFile}" --itemid "${idMapRef[${oldId}]}" > /dev/null || fail
         (( uploaded++ ))
+        uploadedRef=${uploaded}
     done
     endProgress "Uploaded ${ countOf ${uploaded} attachment; }${doneCheck}"
 }
