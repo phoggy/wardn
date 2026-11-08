@@ -6,7 +6,14 @@
 # TODO: This is just a placeholder/test for now. How do get and securely keep
 #       a filled out version that we can update as needed?
 
-# Fill in and open the Bitwarden security readiness kit PDF with current vault data.
+# ◇ Fill in the Bitwarden security readiness kit PDF (etc/bw-security-kit.pdf) with the last updated date and vault
+#   URL, writing it to bitwarden-security-kit.pdf in the current directory (replacing any existing one) and opening
+#   it. Outputs the two filled-in values. A placeholder for now (see the TODO above).
+#
+# · ENV VARS
+#
+#   vaultUrl  The Bitwarden vault URL, for the kit's vault URL field.
+
 generateSecurityKit() {
     _initSecurityKit
     local json="${securityKitJson}"
