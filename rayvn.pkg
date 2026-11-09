@@ -12,4 +12,5 @@ docsWorktree='../wardn-pages'
 declare -A nixBrewMap=([gnused]='gnu-sed')
 declare -a nixBrewExclude=(curl gnugrep coreutils gnutar xz unzip)
 declare -A nixBinaryMap=([bitwarden-cli]='bw' [gnused]='gsed')
+declare -a pagesExclude=('security-kit') # left out of the site until it works (see generateSecurityKit)
 # Note: rayvnPkg → rayvn-central/brew/rayvn, valtPkg → rayvn-central/brew/valt (the tap releases publish to)

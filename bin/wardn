@@ -94,7 +94,11 @@ init() {
     while (( $# > 0 )); do
         case "${1}" in
             backup) operation=backup; unset restoreFile ;;
-            restore) operation=restore; shift; setFileVar restoreFile "${1}" ;;
+            restore)
+                operation=restore; shift
+                [[ ${1:-} == -h || ${1:-} == --help ]] && usage # not a backup file
+                setFileVar restoreFile "${1}"
+                ;;
             -r | --recipient) shift; recipients+=('-r' "${1}") ;;
             -R | --recipients-file) shift; assertFile "${1}" "recipients file"; recipients+=('-R' "${1}") ;;
             -i | --identity | --identity-file) shift; identityFile="${1}" ;;
