@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 
-# Generate bitwarden-security-readiness-kit pdf.
+# Bitwarden security readiness kit PDF generation.
 # Use via: require 'wardn/security-kit'
-
-# TODO: This is just a placeholder/test for now. How do get and securely keep
-#       a filled out version that we can update as needed?
 
 # ◇ Fill in the Bitwarden security readiness kit PDF (etc/bw-security-kit.pdf) with the last updated date and vault
 #   URL, writing it to bitwarden-security-kit.pdf in the current directory (replacing any existing one) and opening
-#   it. Outputs the two filled-in values. A placeholder for now (see the TODO above).
+#   it. Outputs the two filled-in values. A placeholder for now (see the TODO in it).
 #
 # · ENV VARS
 #
 #   vaultUrl  The Bitwarden vault URL, for the kit's vault URL field.
 
 generateSecurityKit() {
+
+    # TODO: This is just a placeholder/test for now: how do we get, and securely keep, a filled out version that we
+    #       can update as needed?
+
     _initSecurityKit
     local json="${securityKitJson}"
     local jsonFile; jsonFile=${ tempDirPath form.json; }

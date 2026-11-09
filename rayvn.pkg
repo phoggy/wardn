@@ -12,4 +12,4 @@ docsWorktree='../wardn-pages'
 declare -A nixBrewMap=([gnused]='gnu-sed')
 declare -a nixBrewExclude=(curl gnugrep coreutils gnutar xz unzip)
 declare -A nixBinaryMap=([bitwarden-cli]='bw' [gnused]='gsed')
-# Note: rayvnPkg → phoggy/rayvn/rayvn, valtPkg → phoggy/rayvn/valt (by convention)
+# Note: rayvnPkg → rayvn-central/brew/rayvn, valtPkg → rayvn-central/brew/valt (the tap releases publish to)
