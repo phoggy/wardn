@@ -46,10 +46,13 @@ brew install wardn
 nix profile add github:phoggy/wardn
 ```
 
+On macOS, Nix can't build the Bitwarden CLI (`bw`), so install it separately, e.g. with `brew install bitwarden-cli`:
+wardn uses the one on your PATH. On Linux, Nix includes it (and Homebrew installs it with wardn everywhere).
+
 To install a specific version:
 
 ```bash
-nix profile add github:phoggy/wardn/v0.1.1
+nix profile add github:phoggy/wardn/v0.2.0
 ```
 
 To upgrade to the latest version:
@@ -69,8 +72,10 @@ All dependencies are declared in the `flake.nix` file in the `runtimeDeps` list.
 ### Restore
 
 ```bash
-nix run github:phoggy/wardn#restore
+nix run github:phoggy/wardn#restore -- restore BACKUP_FILE -i KEY_FILE
 ```
+
+This needs only Nix (and, on macOS, the Bitwarden CLI, as above).
 
 ## Usage
 
