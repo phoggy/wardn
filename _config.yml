@@ -10,9 +10,8 @@ nav_external_links:
     url: https://github.com/phoggy/wardn
   - title: rayvn docs
     url: /rayvn
-
-exclude:
-  - api/
+  - title: valt docs
+    url: /valt
 
 sass:
   quiet_deps: true

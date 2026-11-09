@@ -7,4 +7,9 @@ has_children: true
 
 # API Reference
 
-Documentation for all public functions in rayvn's shared libraries.
+Documentation for all public functions in wardn's libraries.
+
+| Library | Description |
+|---|---|
+| [wardn/backup](/wardn/api/wardn-backup) | Vault backup archives. |
+| [wardn/security-kit](/wardn/api/wardn-security-kit) | Bitwarden security readiness kit PDF generation (a placeholder for now). |
