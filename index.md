@@ -28,6 +28,10 @@ wardn restore BACKUP_FILE    # verifies, decrypts and imports a backup into a va
   with `--no-self`.
 - With a [Bitwarden personal API key](https://bitwarden.com/help/personal-api-key/) set in the `BW_CLIENTID` and
   `BW_CLIENTSECRET` environment variables, logging in asks only for your master password.
+- A backup records the Bitwarden server it was made from, e.g. `https://vault.bitwarden.eu`, and is restored to it
+  unless `-u` gives another.
+- `valt decrypt BACKUP` recognizes a wardn backup, and offers to restore it with wardn: installed, or with Nix or
+  Homebrew.
 - Backups made by earlier versions of wardn (age encrypted tar files) can still be restored.
 
 See the [CLI reference](/wardn/cli/) for every option.

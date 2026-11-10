@@ -43,7 +43,8 @@ Options:
     -p, --prefix PREFIX          Set a prefix for the backup file name.
     -z, --zone ZONE              The time zone for the timestamp in the backup file name: 'local', 'UTC' or a name
                                  such as 'America/Los_Angeles' (default: local, the system time zone).
-    -u, --url URL                Set the URL for the Bitwarden server (default: https://vault.bitwarden.com)
+    -u, --url URL                Set the URL for the Bitwarden server (default: https://vault.bitwarden.com; for a
+                                 restore, the server the backup was made from, if it says).
     -l, --login                  Force full login even if API key environment variables are set.
     -v                           Print the version.
     --version                    Print the version and release date.
