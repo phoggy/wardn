@@ -2,8 +2,8 @@
 
 projectName='wardn'
 projectDescription='Encrypted Bitwarden vault backups. Built with rayvn and valt.'
-projectVersion='0.2.0+'
-projectReleaseDate=''
+projectVersion='0.2.1'
+projectReleaseDate='2026-11-10 13:40:34 PST'
 docsWorktree='../wardn-pages'
 
 # Brew formula metadata (used by rayvn/dependencies for formula generation and runtime dep checks)
