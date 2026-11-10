@@ -37,7 +37,9 @@ usage() {
     echo "    -p, --prefix PREFIX          Set a prefix for the backup file name."
     echo "    -z, --zone ZONE              The time zone for the timestamp in the backup file name: 'local', 'UTC' or a name"
     echo "                                 such as 'America/Los_Angeles' (default: local, the system time zone)."
-    show "    -u, --url URL                Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" glue ")"
+    show "    -u, --url URL                Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" glue \
+         "; for a"
+    echo "                                 restore, the server the backup was made from, if it says)."
     echo "    -l, --login                  Force full login even if API key environment variables are set."
     showCommonOptions 33 true true envVars
     bye "${@}"
@@ -45,6 +47,8 @@ usage() {
 
 main() {
     init "${@}"
+    showHeader
+    [[ -n ${restoreFile} ]] && openBackup # first, so that the vault is unlocked on the server the backup came from
     prepareVault
     if [[ -n ${restoreFile} ]]; then
         restoreVault
@@ -71,6 +75,7 @@ init() {
     namePrefix="${WARDN_BACKUP_PREFIX}"
     timeZone='local'
     vaultUrl=
+    vaultUrlGiven=0
     restoreFile=
     operation=
 
@@ -106,7 +111,7 @@ init() {
             -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
             -p | --prefix) shift; namePrefix="${1}" ;;
             -z | --zone) shift; timeZone="${1}"; timeStamp "${timeZone}" > /dev/null ;;
-            -u | --url) shift; vaultUrl="${1}" ;;
+            -u | --url) shift; vaultUrl="${1}"; vaultUrlGiven=1 ;;
             -l | --login) unset BW_CLIENTID BW_CLIENTSECRET BW_SESSION WARDN_DEV_BW_PWD ;;
             --update) updateCLI; exit 0 ;;
             --debug*) setDebug "$@"; shift $? ;;
@@ -157,7 +162,7 @@ init() {
     addExitHandler cleanup
 }
 
-prepareVault() {
+showHeader() {
     clearTerminal
     echo
     if [[ -n ${restoreFile} ]]; then
@@ -165,6 +170,9 @@ prepareVault() {
     else
         header -u "Create Vault Backup"
     fi
+}
+
+prepareVault() {
     if ! useParentSession; then
         ensureLatestCLI
         unlockVault
@@ -374,7 +382,8 @@ backupVault() {
 
     debug "creating secure archive, recipients=${recipients[*]}"
     local backupFile
-    backupFile="${ newVaultBackup -i "${identityFile}" "${recipients[@]}" -n "${backupName}" -z "${timeZone}" -o "${backupDir}" "${secureWorkDir}"; }" || fail
+    backupFile="${ newVaultBackup -i "${identityFile}" "${recipients[@]}" -n "${backupName}" -z "${timeZone}" -u "${vaultUrl}" \
+        -o "${backupDir}" "${secureWorkDir}"; }" || fail
     local size; size=${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }
 
     if (( attachmentsCount > 0 )); then
@@ -385,6 +394,24 @@ backupVault() {
     logoutFromVault show
     echo
     show bold green "Vault backed up to" "${ tildePath "${backupFile}"; }" bold green "size:" bold "${size}"
+}
+
+# Extracts the backup to restore into secureWorkDir (restore STEP 1), before the vault is unlocked, so that a backup
+# that cannot be opened stops the restore early, and so that the vault is unlocked on the Bitwarden server the backup
+# was made from, unless -u was given. The vault data compresses well, and is imported and exported again, so allow for
+# several times the backup's size.
+
+openBackup() {
+    local backupMb; backupMb="${ du -sm "${restoreFile}" | gawk '{print $1}'; }"
+    prepareSecureWorkDir $(( backupMb * 20 + 64 ))
+
+    echo "Preparing backup. You will be prompted for your private key passphrase if encrypted."
+    local backupServer
+    extractVaultBackup -i "${identityFile}" -o "${secureWorkDir}" -s backupServer "${restoreFile}" || fail
+    if (( ! vaultUrlGiven )) && [[ -n ${backupServer} && ${backupServer} != "${vaultUrl}" ]]; then
+        declare -g vaultUrl="${backupServer}"
+        show "Restoring to" blue "${vaultUrl}" glue ", the Bitwarden server the backup was made from (use -u for another)."
+    fi
 }
 
 restoreVault() {
@@ -430,17 +457,8 @@ restoreVault() {
     local attachmentItemIds=()
     declare -A idMap=()
 
-    assertVaultReady  # (STEP 0)
-
-    # Extract contents of decrypted backup file to secureWorkDir (STEP 1). The vault data compresses well, and is
-    # imported and exported again, so allow for several times the backup's size.
-
-    local backupMb; backupMb="${ du -sm "${backupFile}" | gawk '{print $1}'; }"
-    prepareSecureWorkDir $(( backupMb * 20 + 64 ))
-
-    echo "Preparing backup. You will be prompted for your private key passphrase if encrypted."
+    assertVaultReady  # (STEP 0; the backup was extracted by openBackup, STEP 1)
     cd "${secureWorkDir}" || fail
-    extractVaultBackup -i "${identityFile}" -o "${secureWorkDir}" "${backupFile}" || fail
 
     local spinnerId
     startSpinner spinnerId "Preparing import" # don't start until here, since the above will likely prompt for a password

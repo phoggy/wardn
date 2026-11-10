@@ -4,6 +4,8 @@ main() {
     init "$@"
 
     testBackupRoundTrip
+    testBackupManifest
+    testExtractReportsServer
     testBackupTimeZone
     testBackupRejectsMixedRecipients
     testBackupIgnoresDuplicateRecipients
@@ -61,6 +63,44 @@ testBackupRoundTrip() {
     local restoreDir; restoreDir="${ makeTempDir; }"
     extractVaultBackup -i "${keyFile}" -o "${restoreDir}" "${backup}" > /dev/null 2>&1 || fail "extract failed"
     assertVaultRestored "${restoreDir}"
+}
+
+# A backup's manifest says to restore it with wardn, with the Nix way pinned to a release and extracting discouraged
+
+captureManifest() { cp "$1" "${capturedManifest}"; return 1; }
+
+testBackupManifest() {
+    local vaultDir; newVaultDir vaultDir
+    local backup; backup="${ newVaultBackup -i "${keyFile}" -R "${pubFile}" -n manifest -u https://vault.bitwarden.eu \
+        -o "${ makeTempDir; }" "${vaultDir}"; }"
+    declare -g capturedManifest; capturedManifest="${ makeTempDir; }/manifest.json"
+    extractSecureArchive -i "${keyFile}" -o "${ makeTempDir; }" --manifest-handler captureManifest "${backup}" || fail
+    assertFile "${capturedManifest}"
+    assertEqual 'wardn vault backup' "${ jq -r .kind "${capturedManifest}"; }"
+    assertEqual 'discouraged' "${ jq -r .extract "${capturedManifest}"; }"
+    assertEqual 'restore {archive} -i {identity} -u https://vault.bitwarden.eu' \
+        "${ jq -r '.restore.args | join(" ")' "${capturedManifest}"; }" "the restore must use the server backed up from"
+    assertEqual 'https://vault.bitwarden.eu' "${ jq -r .bitwardenServer "${capturedManifest}"; }"
+    [[ ${ jq -r .restore.nix "${capturedManifest}"; } =~ ^github:phoggy/wardn/v[0-9.]+#restore$ ]] ||
+        fail "the Nix way must be pinned to a release: ${ jq -r .restore.nix "${capturedManifest}"; }"
+    assertEqual 'rayvn-central/brew/wardn' "${ jq -r .restore.brew "${capturedManifest}"; }"
+}
+
+# Extracting a backup reports the server it was made from, or nothing for a backup that does not say
+
+testExtractReportsServer() {
+    local vaultDir; newVaultDir vaultDir
+    local dir; dir="${ makeTempDir; }"
+    local withServer; withServer="${ newVaultBackup -i "${keyFile}" -R "${pubFile}" -n eu -u https://vault.bitwarden.eu \
+        -o "${dir}" "${vaultDir}"; }"
+    local without; without="${ newVaultBackup -i "${keyFile}" -R "${pubFile}" -n none -o "${dir}" "${vaultDir}"; }"
+    local server
+    extractVaultBackup -i "${keyFile}" -o "${ makeTempDir; }" -s server "${withServer}" || fail
+    assertEqual 'https://vault.bitwarden.eu' "${server}"
+    local out; out="${ makeTempDir; }"
+    extractVaultBackup -i "${keyFile}" -o "${out}" -s server "${without}" || fail
+    assertEqual '' "${server}"
+    assertVaultRestored "${out}"
 }
 
 testBackupTimeZone() {
