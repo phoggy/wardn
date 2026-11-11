@@ -1,7 +1,9 @@
 title: wardn
 description: Encrypted Bitwarden vault backups
 theme: just-the-docs
+favicon_ico: "/assets/images/favicon.ico"
 color_scheme: dark
+attribution: 'favicon by <a href="https://www.flaticon.com/free-icons/crow" title="flaticons">Imogen.Oh</a>'
 url: https://rayvn.ink
 baseurl: /wardn
 
@@ -9,9 +11,9 @@ nav_external_links:
   - title: GitHub
     url: https://github.com/phoggy/wardn
   - title: rayvn docs
-    url: /rayvn
+    url: https://rayvn.ink/rayvn/
   - title: valt docs
-    url: /valt
+    url: https://rayvn.ink/valt/
 
 sass:
   quiet_deps: true
