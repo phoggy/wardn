@@ -12,6 +12,8 @@ main() {
     testLegacyBackupRestores
     testIsLegacyVaultBackup
     testExtractWithWrongKeyFails
+    testDownloadVaultAttachments
+    testDownloadVaultAttachmentsSkipsFailures
 
     return 0
 }
@@ -163,6 +165,70 @@ testExtractWithWrongKeyFails() {
     local restoreDir; restoreDir="${ makeTempDir; }"
     ( extractVaultBackup -i "${otherKeyFile}" -o "${restoreDir}" "${backup}" ) > /dev/null 2>&1 && fail "extract with another key must fail"
     assertFileDoesNotExist "${restoreDir}/vault.json"
+}
+
+# A stand-in for 'bw get attachment ID --itemid ITEM --output FILE' that writes "ITEM/ID" to FILE, or fails for the
+# attachment id in failAttachmentId (a local of the calling test).
+
+bw() {
+    [[ $1 == get && $2 == attachment ]] || fail "unexpected bw command: $*"
+    local attachmentId="$3" itemId='' output=''
+    shift 3
+    while (( $# )); do
+        case "$1" in
+            --itemid) itemId="$2"; shift ;;
+            --output) output="$2"; shift ;;
+        esac
+        shift
+    done
+    [[ ${attachmentId} == "${failAttachmentId}" ]] && return 1
+    echo "${itemId}/${attachmentId}" > "${output}"
+}
+
+# Items as 'bw list items' outputs them: attachments under item ids, an item with no attachments, an item in an
+# organization and an item in the trash (both skipped, as 'bw export' leaves them out).
+
+newVaultItems() {
+    local -n itemsRef=$1
+    itemsRef='[
+        {"id": "item-1", "name": "🔑 backup keys", "attachments": [
+            {"id": "a1", "fileName": "backup.profile"},
+            {"id": "a2", "fileName": "my.backup.key"},
+            {"id": "a3", "fileName": "my.backup.key"},
+            {"id": "a4", "fileName": ".hidden"}]},
+        {"id": "item-2", "name": "login"},
+        {"id": "item-3", "name": "notes", "attachments": [{"id": "a5", "fileName": "a/b.txt"}]},
+        {"id": "item-4", "name": "shared", "organizationId": "org-1", "attachments": [{"id": "a6", "fileName": "s.txt"}]},
+        {"id": "item-5", "name": "deleted", "deletedDate": "2026-01-01T00:00:00Z", "attachments": [{"id": "a7", "fileName": "d.txt"}]}
+    ]'
+}
+
+testDownloadVaultAttachments() {
+    local items; newVaultItems items
+    local dir; dir="${ makeTempDir; }"
+    local count
+    local failAttachmentId=''
+    downloadVaultAttachments items "${dir}" count
+    assertEqual 5 "${count}"
+    assertEqual 'item-1/a1' "${ cat "${dir}/item-1/backup.profile"; }"
+    assertEqual 'item-1/a2' "${ cat "${dir}/item-1/my.backup.key"; }"
+    assertEqual 'item-1/a3' "${ cat "${dir}/item-1/my.backup_2.key"; }" "a repeated name must get a suffix"
+    assertEqual 'item-1/a4' "${ cat "${dir}/item-1/.hidden"; }"
+    assertEqual 'item-3/a5' "${ cat "${dir}/item-3/a_b.txt"; }" "a slash in a name must not make a directory"
+    assertFileDoesNotExist "${dir}/item-2"
+    assertFileDoesNotExist "${dir}/item-4"
+    assertFileDoesNotExist "${dir}/item-5"
+}
+
+testDownloadVaultAttachmentsSkipsFailures() {
+    local items; newVaultItems items
+    local dir; dir="${ makeTempDir; }"
+    local count
+    local failAttachmentId='a2'
+    downloadVaultAttachments items "${dir}" count
+    assertEqual 4 "${count}"
+    assertEqual 'item-1/a3' "${ cat "${dir}/item-1/my.backup.key"; }"
+    assertFileDoesNotExist "${dir}/item-1/my.backup_2.key"
 }
 
 source rayvn.up 'rayvn/test' 'valt/keys' 'wardn/backup'

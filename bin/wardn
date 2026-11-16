@@ -353,30 +353,26 @@ backupVault() {
     local items itemsCount expectedCount attachmentsCount
     local spinnerId
 
-    # Size the secure work dir for the export zip and its extracted contents (each about the size of the item list
-    # plus attachments), with room to spare
+    # Size the secure work dir for the export (about the size of the item list) and attachments, with room to spare
 
     items="${ bw list items; }" || fail
     local attachmentBytes; attachmentBytes="${ echo "${items}" | jq '[.[] | .attachments[]? | .size | tonumber] | add // 0'; }"
     prepareSecureWorkDir $(( ( ${#items} * 2 + attachmentBytes ) / 1048576 * 2 + 64 ))
 
-    # Export the vault with its attachments: a zip with data.json and attachments/ITEM_ID/FILE_NAME, the layout of
-    # the backup but for the vault file name. Attachments of items in organizations are not exported.
+    # Export the vault, then download each attachment into attachments/ITEM_ID/FILE_NAME, the layout restore needs to
+    # attach them to the imported items. Not bw's zip export: bw 2026.10.1 (at least) names attachment folders after items
+    # rather than their ids, and changes the file names. Attachments of items in organizations are not exported.
 
     startSpinner spinnerId "Backing up vault"
-    local zipFile; zipFile="${ dirname "${secureWorkDir}"; }/export.zip"
-    bw export --format zip --output "${zipFile}" > /dev/null || fail
-    unzip -q "${zipFile}" -d "${secureWorkDir}" || fail "could not extract the vault export"
-    rm -f "${zipFile}"
-    mv "${secureWorkDir}/data.json" "${vaultFile}" || fail "the vault export has no data.json"
+    bw export --raw --format json > "${vaultFile}" || fail
+    downloadVaultAttachments items "${attachmentsDir}" attachmentsCount
 
     itemsCount="${ jq '.items // [] | length' "${vaultFile}"; }"
-    attachmentsCount="${ find "${attachmentsDir}" -type f | wc -l | gawk '{print $1}'; }"
-    expectedCount="${ echo "${items}" | jq '[.[] | select(.organizationId == null) | .attachments[]?] | length'; }"
+    expectedCount="${ echo "${items}" | jq '[.[] | select(.organizationId == null and .deletedDate == null) | .attachments[]?] | length'; }"
 
     stopSpinner spinnerId "${doneCheck}" # before creating the archive, which prompts for the key passphrase
 
-    # The export skips any attachment it cannot download, so check that none are missing
+    # Any attachment that could not be downloaded is skipped, so check that none are missing
 
     (( attachmentsCount < expectedCount )) && warn "Only ${attachmentsCount} of ${expectedCount} attachments were exported."
 

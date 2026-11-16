@@ -103,7 +103,60 @@ isLegacyVaultBackup() {
     isAgeEncryptedFile "$1"
 }
 
+# ◇ Download the attachments of vault items into a directory, as DIR/ITEM_ID/FILE_NAME: the layout that restore
+#   expects, with the original file names. Only items that 'bw export' includes are downloaded: those not in an
+#   organization or in the trash. An attachment that cannot be downloaded is skipped and not counted, so that a count
+#   lower than expected can be warned about. A second attachment with the same name in an item gets a _2 (_3, ...)
+#   suffix before its extension. The vault must be unlocked.
+#
+# · ARGS
+#
+#   itemsStrRef (stringRef)  Name of var holding the items, as output by 'bw list items'.
+#   dir (dir)                The existing directory to download into.
+#   countRef (intRef)        Name of var to receive the number of attachments downloaded.
+
+downloadVaultAttachments() {
+    local -n itemsStrRef=$1
+    local dir="$2"
+    local -n countRef=$3
+    local itemId attachmentId fileName itemDir file
+    countRef=0
+
+    # Ids are safe to read as tab separated values, but file names could hold tabs or newlines, so get each separately
+
+    while IFS=$'\t' read -r itemId attachmentId; do
+        fileName="${ echo "${itemsStrRef}" | jq -r --arg item "${itemId}" --arg attachment "${attachmentId}" \
+            '.[] | select(.id == $item) | .attachments[] | select(.id == $attachment) | .fileName'; }"
+        itemDir="${dir}/${itemId}"
+        ensureDir "${itemDir}"
+        _uniqueAttachmentPath "${itemDir}" "${fileName//\//_}" file
+        if bw get attachment "${attachmentId}" --itemid "${itemId}" --output "${file}" < /dev/null > /dev/null 2>&1 && [[ -f ${file} ]]; then
+            (( countRef++ ))
+        else
+            debug "could not download attachment ${attachmentId} of item ${itemId}"
+            rm -f "${file}"
+        fi
+    done < <(echo "${itemsStrRef}" | jq -r \
+        '.[] | select(.organizationId == null and .deletedDate == null) | .id as $id | .attachments[]? | [$id, .id] | @tsv')
+}
+
 PRIVATE_CODE="--+-+-----+-++(-++(---++++(---+( ⚠️ BEGIN 'wardn/backup' PRIVATE ⚠️ )+---)++++---)++-)++-+------+-+--"
+
+# Sets the named var to the path for an attachment file in an item's directory: DIR/NAME, or if that exists
+# DIR/BASE_2.EXT (_3, ...), where EXT is the part after the last dot (none for a name like .profile).
+
+_uniqueAttachmentPath() {
+    local dir="$1" name="$2"
+    local -n pathRef=$3
+    local base="${name}" ext=''
+    [[ ${name} == ?*.* ]] && { base="${name%.*}"; ext=".${name##*.}"; }
+    local n=1
+    pathRef="${dir}/${name}"
+    while [[ -e ${pathRef} ]]; do
+        (( n++ ))
+        pathRef="${dir}/${base}_${n}${ext}"
+    done
+}
 
 _init_wardn_backup() {
     require 'valt/archive' 'valt/decrypt'
