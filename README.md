@@ -37,8 +37,16 @@ echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
 
 ```bash
 brew tap rayvn-central/brew
+brew tap phoggy/mrld
+brew tap sts10/phraze
+brew trust --tap rayvn-central/brew
+brew trust --formula phoggy/mrld/mrld sts10/phraze/phraze
 brew install wardn
 ```
+
+Homebrew installs formulae from taps other than its own only once you trust them, hence `brew trust`: wardn's tap, and
+two of valt's dependencies from other taps, [mrld](https://github.com/phoggy/mrld) and
+[phraze](https://github.com/sts10/phraze).
 
 **With Nix:**
 
