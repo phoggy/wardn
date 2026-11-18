@@ -183,7 +183,7 @@ _writeBackupManifest() {
           --arg server "${serverUrl}" '{
         kind: "wardn vault backup", tool: "wardn", version: $version, extract: "discouraged",
         restore: {args: (["restore", "{archive}", "-i", "{identity}"] + (if $server == "" then [] else ["-u", $server] end)),
-                  nix: $nix, brew: "rayvn-central/brew/wardn"}
+                  nix: $nix, brew: "rayvn-central/tap/wardn"}
     } + (if $server == "" then {} else {bitwardenServer: $server} end)' > "${manifestFile}" ||
         fail "could not write ${manifestFile}"
     # lint-skip-end

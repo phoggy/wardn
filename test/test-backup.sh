@@ -85,7 +85,7 @@ testBackupManifest() {
     assertEqual 'https://vault.bitwarden.eu' "${ jq -r .bitwardenServer "${capturedManifest}"; }"
     [[ ${ jq -r .restore.nix "${capturedManifest}"; } =~ ^github:phoggy/wardn/v[0-9.]+#restore$ ]] ||
         fail "the Nix way must be pinned to a release: ${ jq -r .restore.nix "${capturedManifest}"; }"
-    assertEqual 'rayvn-central/brew/wardn' "${ jq -r .restore.brew "${capturedManifest}"; }"
+    assertEqual 'rayvn-central/tap/wardn' "${ jq -r .restore.brew "${capturedManifest}"; }"
 }
 
 # Extracting a backup reports the server it was made from, or nothing for a backup that does not say
