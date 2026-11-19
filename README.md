@@ -99,11 +99,19 @@ Run `wardn --help` for options.
 A backup can also carry other encrypted files, so that everything needed to recover is in one place: for example,
 an export of an authenticator app's tokens, which you would not keep in Bitwarden itself.
 
+For example, with [2FAS](https://2fas.com): in the app, export a backup **with a password** (Settings → 2FAS
+Backup → Export), using a long random password that you save in your vault. Copy the export to your computer (it is
+encrypted, so it never exists unencrypted there), then:
+
 ```bash
-valt encrypt ~/Downloads/2fas-backup.2fas -o ~/Recovery/2fas.age -f --verify --delete
+valt encrypt ~/Downloads/EXPORT.2fas -o ~/Recovery/2fas.age -f && rm ~/Downloads/EXPORT.2fas
 export WARDN_INCLUDE_PATH=~/Recovery     # e.g. in your profile
 wardn backup                             # includes ~/Recovery's .age and .valt files
 ```
+
+To recover, `wardn restore` the backup, open the `2fas.age` it saves (in `BACKUP-included/`) with `valt decrypt`,
+and import the result in 2FAS with the export password, from the restored vault. Repeat the export whenever you add
+tokens.
 
 - `WARDN_INCLUDE_PATH` lists files and directories, separated by `:`, whose `.age` and `.valt` files are included;
   `--include PATH` adds more, and `--no-include` ignores the variable for one backup.
