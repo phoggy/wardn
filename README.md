@@ -93,3 +93,27 @@ This needs only Nix (and, on macOS, the Bitwarden CLI, as above).
 Homebrew.
 
 Run `wardn --help` for options.
+
+### Including other files
+
+A backup can also carry other encrypted files, so that everything needed to recover is in one place: for example,
+an export of an authenticator app's tokens, which you would not keep in Bitwarden itself.
+
+```bash
+valt encrypt ~/Downloads/2fas-backup.2fas -o ~/Recovery/2fas.age -f --verify --delete
+export WARDN_INCLUDE_PATH=~/Recovery     # e.g. in your profile
+wardn backup                             # includes ~/Recovery's .age and .valt files
+```
+
+- `WARDN_INCLUDE_PATH` lists files and directories, separated by `:`, whose `.age` and `.valt` files are included;
+  `--include PATH` adds more, and `--no-include` ignores the variable for one backup.
+- **Each must be signed by, and openable with, your valt key**, or the backup fails. So the key that opens the
+  backup opens everything in it, and a file someone else made can't be slipped in. Other recipients are fine.
+- They are included still encrypted, and wardn warns about any not modified for 90 days
+  (`WARDN_INCLUDE_MAX_AGE_DAYS`): re-export them when they change.
+- `wardn restore` saves them, still encrypted, next to the backup (`BACKUP-included/`); open each with
+  `valt decrypt FILE`.
+
+A backup that includes your 2FA tokens holds both your passwords and your second factors, protected by your valt
+key and its passphrase. That is the point for recovery, but keep backups apart from your paper key, and the
+passphrase apart from both.

@@ -11,7 +11,8 @@
 #
 # · USAGE
 #
-#   newVaultBackup -i PATH (-r RECIPIENT | -R PATH)... -n NAME [-z ZONE] [-u URL] -o DIR SOURCE
+#   newVaultBackup -i PATH (-r RECIPIENT | -R PATH)... -n NAME [-z ZONE] [-u URL] [--include PATH]...
+#                  [--include-max-age DAYS] -o DIR SOURCE
 #
 #   -i, --identity PATH        The valt key file used to sign the backup.
 #   -r, --recipient RECIPIENT  Encrypt to the specified RECIPIENT (age public key). Can be repeated.
@@ -20,6 +21,10 @@
 #   -z, --zone ZONE            The time zone for the timestamp: 'local', 'UTC' or a name such as 'America/Los_Angeles'
 #                              (default: local).
 #   -u, --url URL              The Bitwarden server the vault was exported from, e.g. https://vault.bitwarden.eu.
+#   --include PATH             Include an encrypted file (.valt or .age), or all of them in a directory, still
+#                              encrypted, under included/; each must be signed by, and openable with, the -i key (see
+#                              newSecureArchive in 'valt/archive'). Can be repeated.
+#   --include-max-age DAYS     Warn about included files last modified more than DAYS days ago.
 #   -o, --output-dir DIR       The directory to write the backup to.
 #   SOURCE (dir)               The directory whose contents are backed up.
 
@@ -29,7 +34,8 @@ newVaultBackup() {
     while (( $# )); do
         case "$1" in
             -u | --url) shift; serverUrl="$1" ;;
-            -i | --identity | -r | --recipient | -R | --recipient-file | -n | --name | -z | --zone | -o | --output-dir)
+            -i | --identity | -r | --recipient | -R | --recipient-file | -n | --name | -z | --zone | -o | --output-dir | \
+            --include | --include-max-age)
                 archiveArgs+=("$1" "$2"); shift ;;
             -*) invalidArgs "unknown option: $1" ;;
             *) [[ -z ${sourceDir} ]] || invalidArgs "unexpected argument: $1"; sourceDir="$1" ;;

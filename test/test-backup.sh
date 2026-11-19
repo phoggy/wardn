@@ -9,6 +9,8 @@ main() {
     testBackupTimeZone
     testBackupRejectsMixedRecipients
     testBackupIgnoresDuplicateRecipients
+    testBackupIncludesFiles
+    testBackupFailsOnForeignInclude
     testLegacyBackupRestores
     testIsLegacyVaultBackup
     testExtractWithWrongKeyFails
@@ -131,6 +133,44 @@ testBackupIgnoresDuplicateRecipients() {
 }
 
 # A backup written the way wardn did before it used valt archives: a gzipped tar of a named directory, encrypted with age.
+
+# Writes DIR/NAME.age, encrypted to your key and signed with the given key, as valt encrypt does.
+
+newIncludeFile() {
+    local dir="$1" name="$2" signingKey="$3"
+    echo "secret ${name}" > "${dir}/${name}"
+    encrypt "${dir}/${name}" -R "${pubFile}" -o "${dir}/${name}.age" || fail
+    signFile "${signingKey}" "${dir}/${name}.age" || fail
+    rm "${dir}/${name}"
+}
+
+# Files given with --include are in the restored backup's included/, still encrypted
+
+testBackupIncludesFiles() {
+    local vaultDir; newVaultDir vaultDir
+    local includeDir; includeDir="${ makeTempDir; }"
+    newIncludeFile "${includeDir}" tokens.2fas "${keyFile}"
+    local backupDir; backupDir="${ makeTempDir; }"
+    local backup; backup="${ newVaultBackup -i "${keyFile}" -R "${pubFile}" --include "${includeDir}" \
+        --include-max-age 90 -n included -o "${backupDir}" "${vaultDir}" 2> /dev/null; }" || fail "backup failed"
+
+    local restoreDir; restoreDir="${ makeTempDir; }"
+    extractVaultBackup -i "${keyFile}" -o "${restoreDir}" "${backup}" > /dev/null 2>&1 || fail "extract failed"
+    assertVaultRestored "${restoreDir}"
+    assertFile "${restoreDir}/included/tokens.2fas.age.minisig"
+    assertEqual 'secret tokens.2fas' "${ decrypt -i "${keyFile}" "${restoreDir}/included/tokens.2fas.age"; }"
+}
+
+# A file signed by another key fails the backup, rather than being left out
+
+testBackupFailsOnForeignInclude() {
+    local vaultDir; newVaultDir vaultDir
+    local includeDir; includeDir="${ makeTempDir; }"
+    newIncludeFile "${includeDir}" forged.txt "${otherKeyFile}"
+    local output; output="${ ( newVaultBackup -i "${keyFile}" -R "${pubFile}" --include "${includeDir}" -n forged \
+        -o "${ makeTempDir; }" "${vaultDir}" > /dev/null ) 2>&1; }" && fail "the backup must fail"
+    assertContains 'is not signed by this key' "${output}"
+}
 
 testLegacyBackupRestores() {
     local vaultDir; newVaultDir vaultDir

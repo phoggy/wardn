@@ -9,6 +9,7 @@ usage() {
     show bold "Create a backup of a Bitwarden vault or restore a vault from one, as a" cyan "valt" bold "secure archive."
     echo
     show "Usage:" bold blue "${scriptName}" "backup [-i IDENTITY] [-r RECIPIENT]... [-R PATH]... [--no-self] [-b BACKUP_DIR] [-z ZONE]"
+    show "      " "                [--include PATH]... [--no-include]"
     show "      " bold blue "${scriptName}" "restore BACKUP_FILE [-i IDENTITY]"
     echo
     echo "The Bitwarden CLI is used to access the vault. Login/unlock requires user input: credentials are never stored."
@@ -26,6 +27,12 @@ usage() {
     echo "Linux, or else a RAM disk created for the purpose on macOS. If none is available you will be asked whether to"
     echo "continue using disk storage, from which deleted files may still be recoverable."
     echo
+    echo "A backup can also include other encrypted files, still encrypted, so that everything needed to recover is in one"
+    show "place, e.g. an authenticator app's export encrypted with" blue "valt encrypt" glue ": secure archives (.valt) and"
+    echo ".age files, or all of them in a directory, from --include and WARDN_INCLUDE_PATH. Each must be signed by, and"
+    echo "openable with, your key, or the backup fails; wardn warns about any not modified for WARDN_INCLUDE_MAX_AGE_DAYS"
+    echo "days (default: 90). Restoring saves them, still encrypted, next to the backup."
+    echo
     echo "Options:"
     echo
     echo "    -i, --identity PATH          Your valt private key file, used to sign backups and to restore them (default:"
@@ -40,6 +47,9 @@ usage() {
     show "    -u, --url URL                Set the URL for the Bitwarden server (default:" blue "${defaultServerUrl}" glue \
          "; for a"
     echo "                                 restore, the server the backup was made from, if it says)."
+    echo "    --include PATH               Include an encrypted file (.valt or .age), or all of them in a directory, in the"
+    echo "                                 backup, as well as those in WARDN_INCLUDE_PATH. May be repeated."
+    echo "    --no-include                 Ignore WARDN_INCLUDE_PATH for this backup."
     echo "    -l, --login                  Force full login even if API key environment variables are set."
     showCommonOptions 33 true true envVars
     bye "${@}"
@@ -70,6 +80,8 @@ init() {
         ['BW_CLIENTSECRET']="Bitwarden API key secret."
         ['WARDN_BACKUP_DIR']="Default backup destination directory."
         ['WARDN_BACKUP_PREFIX']="Default backup file name prefix."
+        ['WARDN_INCLUDE_PATH']="Encrypted files or directories to include in backups, separated by ':'."
+        ['WARDN_INCLUDE_MAX_AGE_DAYS']="Warn about included files older than this many days (default: 90)."
     )
 
     namePrefix="${WARDN_BACKUP_PREFIX}"
@@ -93,6 +105,8 @@ init() {
     recipients=()
     identityFile="${defaultIdentityFile}"
     noSelf=0
+    includePaths=()
+    noInclude=0
 
     (( $# )) || usage
 
@@ -108,6 +122,8 @@ init() {
             -R | --recipients-file) shift; assertFile "${1}" "recipients file"; recipients+=('-R' "${1}") ;;
             -i | --identity | --identity-file) shift; identityFile="${1}" ;;
             --no-self) noSelf=1 ;;
+            --include) shift; [[ -n ${1:-} ]] || usage "--include requires a path"; includePaths+=("${1}") ;;
+            --no-include) noInclude=1 ;;
             -b | --backup-dir) shift; setDirVar backupDir "${1}" "backup dir path" ;;
             -p | --prefix) shift; namePrefix="${1}" ;;
             -z | --zone) shift; timeZone="${1}"; timeStamp "${timeZone}" > /dev/null ;;
@@ -148,6 +164,7 @@ init() {
         fi
         (( ${#recipients[@]} )) || usage "--no-self requires at least one --recipient or --recipients-file"
         assertCompatibleRecipients "${recipients[@]}" # before logging in and exporting the vault
+        setIncludeArgs
         [[ -n ${namePrefix} ]] || namePrefix="${USER}"
         declare -gr backupName="${namePrefix}-backup"
     else
@@ -160,6 +177,33 @@ init() {
     checkProjectDependencies 'wardn'
 
     addExitHandler cleanup
+}
+
+# Sets includeArgs, the newVaultBackup args for the files to include: those in WARDN_INCLUDE_PATH (unless --no-include)
+# and from --include, each checked to exist before logging in (valt checks the rest when it creates the backup).
+
+setIncludeArgs() {
+    declare -ga includeArgs=()
+    local -a paths=()
+    if (( ! noInclude )) && [[ -n ${WARDN_INCLUDE_PATH:-} ]]; then
+        local -a fromEnv=()
+        IFS=':' read -r -a fromEnv <<< "${WARDN_INCLUDE_PATH}"
+        local path
+        for path in "${fromEnv[@]}"; do
+            [[ -n ${path} ]] && paths+=("${path/#\~/${HOME}}")
+        done
+    fi
+    paths+=("${includePaths[@]}")
+    (( ${#paths[@]} )) || return 0
+
+    local maxAge="${WARDN_INCLUDE_MAX_AGE_DAYS:-90}"
+    [[ ${maxAge} =~ ^[0-9]+$ ]] || usage "WARDN_INCLUDE_MAX_AGE_DAYS must be a number of days: ${maxAge}"
+    local path
+    for path in "${paths[@]}"; do
+        [[ -e ${path} ]] || usage "file to include not found: ${ tildePath "${path}"; }"
+        includeArgs+=(--include "${path}")
+    done
+    includeArgs+=(--include-max-age "${maxAge}")
 }
 
 showHeader() {
@@ -378,8 +422,8 @@ backupVault() {
 
     debug "creating secure archive, recipients=${recipients[*]}"
     local backupFile
-    backupFile="${ newVaultBackup -i "${identityFile}" "${recipients[@]}" -n "${backupName}" -z "${timeZone}" -u "${vaultUrl}" \
-        -o "${backupDir}" "${secureWorkDir}"; }" || fail
+    backupFile="${ newVaultBackup -i "${identityFile}" "${recipients[@]}" "${includeArgs[@]}" -n "${backupName}" \
+        -z "${timeZone}" -u "${vaultUrl}" -o "${backupDir}" "${secureWorkDir}"; }" || fail
     local size; size=${ du -h "${backupFile}" | cut -d' ' -f2 | cut -d $'\t' -f1; }
 
     if (( attachmentsCount > 0 )); then
@@ -408,6 +452,27 @@ openBackup() {
         declare -g vaultUrl="${backupServer}"
         show "Restoring to" blue "${vaultUrl}" glue ", the Bitwarden server the backup was made from (use -u for another)."
     fi
+    saveIncludedFiles
+}
+
+# Saves the files the backup includes (see --include), if any, next to it: they are still encrypted, so need no
+# secure storage. A directory already there is left as it is.
+
+saveIncludedFiles() {
+    local includedDir="${secureWorkDir}/included"
+    [[ -d ${includedDir} ]] || return 0
+    local destDir="${restoreFile%.valt}-included"
+    if [[ -e ${destDir} ]]; then
+        show "The backup's included files were not saved:" bold "${ tildePath "${destDir}"; }" "already exists."
+        return 0
+    fi
+    cp -Rp "${includedDir}" "${destDir}" || fail "could not save the included files to ${ tildePath "${destDir}"; }"
+    show "Saved the files this backup includes, still encrypted, to" bold "${ tildePath "${destDir}"; }" glue ":"
+    local file
+    for file in "${destDir}"/*.valt "${destDir}"/*.age; do
+        [[ -f ${file} ]] && show "   " "${file##*/}"
+    done
+    show "Open each with" blue "valt decrypt FILE" glue "."
 }
 
 restoreVault() {
