@@ -68,6 +68,27 @@ Bitwarden CLI, as above):
 nix run github:phoggy/wardn#restore -- restore BACKUP_FILE -i KEY_FILE
 ```
 
+## Best Practices
+
+A backup holds your whole vault, so it needs the care the vault itself gets. One that includes your 2FA tokens (see
+[Including other files](https://github.com/phoggy/wardn#including-other-files)) holds your second factors as well: that
+is what makes it a complete recovery set, opened by your valt key alone, and why these practices matter.
+
+- **Follow valt's [best practices](https://rayvn.ink/valt/#best-practices):** keep backups apart from your paper key,
+  treat a paper key with the passphrase written on it as a complete key, keep a copy of the passphrase you can reach
+  without Bitwarden, and type it only on a computer you trust.
+- **Keep more than one backup, in more than one place,** e.g. on a NAS and in cloud storage: a backup is only useful if
+  it survives whatever happened to the original.
+- **Keep the set current.** Back up after changing your vault, and export included files again when they change (wardn
+  warns about any older than 90 days).
+- **Keep Bitwarden's two-step login recovery code in the vault,** as a secure note, so that every backup has it. If you
+  lose your two-step login device, it is in the backup's vault export: `valt decrypt BACKUP --extract` gives it. That
+  writes your whole vault, unencrypted, to the current directory: do it on a computer you trust, and delete the files as
+  soon as you have the code.
+- **Practice a restore.** Once in a while, say yearly, restore a backup into a separate Bitwarden account made for the
+  purpose, using only your paper key and its passphrase, as you would after losing everything. It shows that the backup,
+  the key and the steps all work, while you can still fix them.
+
 ## Libraries
 
 | Library | Description |
