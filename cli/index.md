@@ -15,6 +15,7 @@ which verifies, decrypts and imports one into a vault.
 Create a backup of a Bitwarden vault or restore a vault from one, as a valt secure archive.
 
 Usage: wardn backup [-i IDENTITY] [-r RECIPIENT]... [-R PATH]... [--no-self] [-b BACKUP_DIR] [-z ZONE]
+                       [--include PATH]... [--no-include]
        wardn restore BACKUP_FILE [-i IDENTITY]
 
 The Bitwarden CLI is used to access the vault. Login/unlock requires user input: credentials are never stored.
@@ -32,6 +33,12 @@ rather than on disk, so that it cannot be recovered after it is deleted: storage
 Linux, or else a RAM disk created for the purpose on macOS. If none is available you will be asked whether to
 continue using disk storage, from which deleted files may still be recoverable.
 
+A backup can also include other encrypted files, still encrypted, so that everything needed to recover is in one
+place, e.g. an authenticator app's export encrypted with valt encrypt: secure archives (.valt) and
+.age files, or all of them in a directory, from --include and WARDN_INCLUDE_PATH. Each must be signed by, and
+openable with, your key, or the backup fails; wardn warns about any not modified for WARDN_INCLUDE_MAX_AGE_DAYS
+days (default: 90). Restoring saves them, still encrypted, next to the backup.
+
 Options:
 
     -i, --identity PATH          Your valt private key file, used to sign backups and to restore them (default:
@@ -45,6 +52,9 @@ Options:
                                  such as 'America/Los_Angeles' (default: local, the system time zone).
     -u, --url URL                Set the URL for the Bitwarden server (default: https://vault.bitwarden.com; for a
                                  restore, the server the backup was made from, if it says).
+    --include PATH               Include an encrypted file (.valt or .age), or all of them in a directory, in the
+                                 backup, as well as those in WARDN_INCLUDE_PATH. May be repeated.
+    --no-include                 Ignore WARDN_INCLUDE_PATH for this backup.
     -l, --login                  Force full login even if API key environment variables are set.
     -v                           Print the version.
     --version                    Print the version and release date.
@@ -65,6 +75,8 @@ Environment Variables
     RAYVN_PROMPT_TIMEOUT         Default prompt timeout seconds (default: 30).
     WARDN_BACKUP_DIR             Default backup destination directory.
     WARDN_BACKUP_PREFIX          Default backup file name prefix.
+    WARDN_INCLUDE_MAX_AGE_DAYS   Warn about included files older than this many days (default: 90).
+    WARDN_INCLUDE_PATH           Encrypted files or directories to include in backups, separated by ':'.
 ```
 
 ## Restore Without Installing

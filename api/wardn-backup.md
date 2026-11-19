@@ -22,7 +22,7 @@ The Bitwarden server it was made from is recorded too, so that it is restored to
 
 *usage*
 
-`newVaultBackup -i PATH (-r RECIPIENT | -R PATH)... -n NAME [-z ZONE] [-u URL] -o DIR SOURCE`
+`newVaultBackup -i PATH (-r RECIPIENT | -R PATH)... -n NAME [-z ZONE] [-u URL] [--include PATH]...`
 {: .usage-signature}
 
 | | |
@@ -33,6 +33,8 @@ The Bitwarden server it was made from is recorded too, so that it is restored to
 | `-n, --name NAME` | The backup file name prefix; a timestamp is appended. |
 | `-z, --zone ZONE` | The time zone for the timestamp: 'local', 'UTC' or a name such as 'America/Los_Angeles' (default: local). |
 | `-u, --url URL` | The Bitwarden server the vault was exported from, e.g. https://vault.bitwarden.eu. |
+| `--include PATH` | Include an encrypted file (.valt or .age), or all of them in a directory, still encrypted, under included/; each must be signed by, and openable with, the `-i` key (see newSecureArchive in 'valt/archive'). Can be repeated. |
+| `--include-max-age DAYS` | Warn about included files last modified more than DAYS days ago. |
 | `-o, --output-dir DIR` | The directory to write the backup to. |
 | `SOURCE` *(dir)* | The directory whose contents are backed up. |
 {: .usage-table}
@@ -67,5 +69,23 @@ Succeeds if the file is a legacy vault backup (an age encrypted tar file) rather
 | | |
 |---|---|
 | `backupFile` *(file)* | The backup file. |
+{: .args-table}
+
+### downloadVaultAttachments()
+
+Download the attachments of vault items into a directory, as DIR/ITEM_ID/FILE_NAME: the layout that restore
+expects, with the original file names. Only items that 'bw export' includes are downloaded: those not in an
+organization or in the trash. An attachment that cannot be downloaded is skipped and not counted, so that a count
+lower than expected can be warned about. A second attachment with the same name in an item gets a _2 (_3, ...)
+suffix before its extension. The vault must be unlocked.
+
+
+*args*
+
+| | |
+|---|---|
+| `itemsStrRef` *(stringRef)* | Name of var holding the items, as output by 'bw list items'. |
+| `dir` *(dir)* | The existing directory to download into. |
+| `countRef` *(intRef)* | Name of var to receive the number of attachments downloaded. |
 {: .args-table}
 
