@@ -104,14 +104,28 @@ Backup → Export), using a long random password that you save in your vault. Co
 encrypted, so it never exists unencrypted there), then:
 
 ```bash
-valt encrypt ~/Downloads/EXPORT.2fas -o ~/Recovery/2fas.age -f && rm ~/Downloads/EXPORT.2fas
+valt encrypt ~/Downloads/EXPORT.2fas -o ~/Recovery/tokens.2fas.age -f && rm ~/Downloads/EXPORT.2fas
+$EDITOR ~/Recovery/tokens.2fas.age.note  # how to recover the tokens: see below
 export WARDN_INCLUDE_PATH=~/Recovery     # e.g. in your profile
 wardn backup                             # includes ~/Recovery's .age and .valt files
 ```
 
-To recover, `wardn restore` the backup, open the `2fas.age` it saves (in `BACKUP-included/`) with `valt decrypt`,
-and import the result in 2FAS with the export password, from the restored vault. Repeat the export whenever you add
-tokens.
+Repeat the export whenever you add tokens.
+
+**Say how to recover it.** Whoever restores the backup may not know what an included file is, or what to do with it,
+so give each one a note: a text file of the same name plus `.note`, as above. It is included with the file, and
+`wardn restore` shows it. For example:
+
+```text
+2FAS authenticator tokens: a password-protected export from the 2FAS app. To restore them to a phone:
+
+1. Open this file with the same key as the backup: valt decrypt tokens.2fas.age (gives tokens.2fas)
+2. Copy tokens.2fas to the phone, and in 2FAS: Settings → 2FAS Backup → Import.
+3. Enter the export password: it is in the restored vault, in the item "2FAS export password".
+4. Delete tokens.2fas from the computer and the phone.
+```
+
+The note is encrypted in the backup, but should never hold the password itself: say where to find it.
 
 - `WARDN_INCLUDE_PATH` lists files and directories, separated by `:`, whose `.age` and `.valt` files are included;
   `--include PATH` adds more, and `--no-include` ignores the variable for one backup.
@@ -119,8 +133,8 @@ tokens.
   backup opens everything in it, and a file someone else made can't be slipped in. Other recipients are fine.
 - They are included still encrypted, and wardn warns about any not modified for 90 days
   (`WARDN_INCLUDE_MAX_AGE_DAYS`): re-export them when they change.
-- `wardn restore` saves them, still encrypted, next to the backup (`BACKUP-included/`); open each with
-  `valt decrypt FILE`.
+- `wardn restore` saves them, still encrypted, next to the backup (`BACKUP-included/`), and shows each one's note;
+  open each with `valt decrypt FILE`.
 
 ## Best Practices
 

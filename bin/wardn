@@ -468,11 +468,7 @@ saveIncludedFiles() {
     fi
     cp -Rp "${includedDir}" "${destDir}" || fail "could not save the included files to ${ tildePath "${destDir}"; }"
     show "Saved the files this backup includes, still encrypted, to" bold "${ tildePath "${destDir}"; }" glue ":"
-    local file
-    for file in "${destDir}"/*.valt "${destDir}"/*.age; do
-        [[ -f ${file} ]] && show "   " "${file##*/}"
-    done
-    show "Open each with" blue "valt decrypt FILE" glue "."
+    showIncludedFiles "${destDir}"
 }
 
 restoreVault() {
