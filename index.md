@@ -20,8 +20,7 @@ backup, then imports it into a vault, attachments and all.
   changed, or replaced by one made with another key, is refused before anything is restored.
 - **Others can recover it.** Your valt [paper key](/valt/assets/sample-paper-key.pdf) explains to your successors how
   to use your key. A backup can be restored with only Nix installed (see
-  [Restore Without Installing](#restore-without-installing)), and `valt decrypt BACKUP` recognizes a wardn backup and
-  offers to restore it.
+  [Restore Without Installing](#restore-without-installing)).
 - **Everything in one place.** A backup can include other encrypted files, such as your authenticator app's 2FA tokens
   (see [Including other files](https://github.com/phoggy/wardn#including-other-files)), so that it is a complete
   recovery set.
