@@ -1,101 +1,31 @@
 # wardn
 
-Encrypted [Bitwarden](https://bitwarden.com/) vault backup and restore.
+Encrypted [Bitwarden](https://bitwarden.com/) vault backup and restore, built on [valt](https://github.com/phoggy/valt).
+
+wardn exports your Bitwarden vault, attachments included, with the Bitwarden CLI, and saves it as a valt
+[secure archive](https://rayvn.ink/valt/api/valt-archive#secure-archives): encrypted with
+[age](https://age-encryption.org/) and signed with [minisign](https://jedisct1.github.io/minisign/), using your valt
+key. Restoring verifies and decrypts a backup, then imports it into a vault, attachments and all.
+
+- **Post-quantum encryption.** valt keys are always post-quantum: age's hybrid of ML-KEM-768 and X25519, so a backup
+  made today stays protected against future quantum computers, even if it is copied now and attacked later (see the
+  [design notes](https://rayvn.ink/valt/api/valt-keys#design-notes)).
+- **Tampering is detected.** A secure archive is signed both outside and inside its encryption, so a backup that was
+  changed, or replaced by one made with another key, is refused before anything is restored.
+- **Others can recover it.** Your valt [paper key](https://rayvn.ink/valt/assets/sample-paper-key.pdf) explains to
+  your successors how to use your key. A backup can be restored with only Nix installed (see
+  [Restore Without Installing](#restore-without-installing)), and `valt decrypt BACKUP` recognizes a wardn backup and
+  offers to restore it.
+- **Everything in one place.** A backup can include other encrypted files, such as your authenticator app's 2FA tokens
+  (see [Including other files](#including-other-files)), so that it is a complete recovery set.
+- **Your secrets stay off disk.** Your credentials are never stored: logging in and unlocking always ask for them. The
+  unencrypted vault data is kept only in memory-backed storage while wardn works, never on disk, unless none is
+  available and you agree to use the disk (see [RAM-backed Temp Storage](#optional-ram-backed-temp-storage)).
 
 ## Installation
 
-wardn can be installed with [Homebrew](https://brew.sh) or [Nix](https://nixos.org/).
-
-### Homebrew
-
-```bash
-brew tap rayvn-central/tap
-brew trust --tap rayvn-central/tap
-brew install wardn
-```
-
-Homebrew installs formulae from taps other than its own only once you trust them, hence `brew trust`. The tap also has
-two of valt's dependencies, [mrld](https://github.com/phoggy/mrld) and [phraze](https://github.com/sts10/phraze);
-Homebrew installs the rest of wardn's dependencies with it, including the Bitwarden CLI (`bw`).
-
-To upgrade to the latest version:
-
-```bash
-brew upgrade wardn
-```
-
-### Nix
-
-If you don't have Nix yet, install it first (see [Installing Nix](#installing-nix)), then:
-
-```bash
-nix profile add github:phoggy/wardn
-```
-
-On macOS, Nix can't build the Bitwarden CLI (`bw`), so install it separately, e.g. with `brew install bitwarden-cli`:
-wardn uses the one on your PATH. On Linux, Nix includes it.
-
-To install a specific version:
-
-```bash
-nix profile add github:phoggy/wardn/v0.2.0
-```
-
-To upgrade to the latest version:
-
-```bash
-nix profile upgrade wardn
-```
-
-To run without installing:
-
-```bash
-nix run github:phoggy/wardn
-```
-
-All dependencies are declared in the `flake.nix` file in the `runtimeDeps` list. New dependencies must be added there.
-
-#### Installing Nix
-
-**Mac with Apple silicon:** Download and run the [Determinate Nix installer](https://dtr.mn/determinate-nix).
-
-**Mac x86:**
-
-```bash
-curl -L https://nixos.org/nix/install | sh
-```
-
-**Linux:**
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-```
-
-**Windows:** Nix runs in Windows' own Linux environment, WSL. In PowerShell as administrator, run `wsl --install`,
-restart, open Ubuntu from the Start menu, and follow the Linux step above inside it (see
-[Install WSL](https://learn.microsoft.com/windows/wsl/install)). Windows files are under `/mnt/c` there.
-
-All installers create a `/nix` volume and take a few minutes to complete. Answer yes to any prompts and allow any
-system dialogs that pop up. Once complete, open a new terminal before continuing.
-
-If you used the Mac x86 installer, enable flakes:
-
-```bash
-mkdir -p ~/.config/nix
-echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
-```
-
-To remove Nix later: after the Determinate installer, run `/nix/nix-installer uninstall`; after the Mac x86 one, see
-[Uninstalling Nix](https://nix.dev/manual/nix/latest/installation/uninstall).
-
-### Restore
-
-To restore a backup on a computer without wardn installed, only Nix is needed (and, on macOS, the Bitwarden CLI, as
-above):
-
-```bash
-nix run github:phoggy/wardn#restore -- restore BACKUP_FILE -i KEY_FILE
-```
+wardn can be installed with [Homebrew](https://brew.sh) or [Nix](https://nixos.org/): see
+[Install with Homebrew](#install-with-homebrew) or [Install with Nix](#install-with-nix) below.
 
 ## Usage
 
@@ -152,6 +82,15 @@ The note is encrypted in the backup, but should never hold the password itself: 
 - `wardn restore` saves them, still encrypted, next to the backup (`BACKUP-included/`), and shows each one's note;
   open each with `valt decrypt FILE`.
 
+## Restore Without Installing
+
+To restore a backup on a computer without wardn installed, only [Nix](#install-with-nix) is needed (and, on macOS, the
+Bitwarden CLI, as described there):
+
+```bash
+nix run github:phoggy/wardn#restore -- restore BACKUP_FILE -i KEY_FILE
+```
+
 ## Best Practices
 
 A backup holds your whole vault, so it needs the care the vault itself gets. One that includes your 2FA tokens (see
@@ -172,3 +111,125 @@ recovery set, opened by your valt key alone, and why these practices matter.
 - **Practice a restore.** Once in a while, say yearly, restore a backup into a separate Bitwarden account made for the
   purpose, using only your paper key and its passphrase, as you would after losing everything. It shows that the backup,
   the key and the steps all work, while you can still fix them.
+
+## Install with Homebrew
+
+If you don't have Homebrew yet, install it first (see [Installing Homebrew](#installing-homebrew)), then:
+
+```bash
+brew tap rayvn-central/tap
+brew trust --tap rayvn-central/tap
+brew install wardn
+```
+
+Homebrew installs formulae from taps other than its own only once you trust them, hence `brew trust`. The tap also has
+two of valt's dependencies, [mrld](https://github.com/phoggy/mrld) and [phraze](https://github.com/sts10/phraze);
+Homebrew installs the rest of wardn's dependencies with it, including the Bitwarden CLI (`bw`).
+
+To upgrade to the latest version:
+
+```bash
+brew upgrade wardn
+```
+
+### Installing Homebrew
+
+**Mac and Linux:**
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+On a Mac, this also installs Apple's Command Line Tools if they are missing; or download and run the `.pkg` installer
+from [Homebrew's latest release](https://github.com/Homebrew/brew/releases/latest) instead. On Linux, first install the
+tools it needs, e.g. on Debian or Ubuntu: `sudo apt-get install build-essential procps curl file git`.
+
+**Windows:** Homebrew runs in Windows' own Linux environment, WSL. In PowerShell as administrator, run `wsl --install`,
+restart, open Ubuntu from the Start menu, and follow the Linux step above inside it (see
+[Install WSL](https://learn.microsoft.com/windows/wsl/install)). Windows files are under `/mnt/c` there.
+
+When it finishes, the installer shows **Next steps**: run the commands it gives to add `brew` to your PATH, then open a
+new terminal before continuing.
+
+To remove Homebrew later, see [How do I uninstall Homebrew?](https://docs.brew.sh/FAQ#how-do-i-uninstall-homebrew).
+
+## Install with Nix
+
+If you don't have Nix yet, install it first (see [Installing Nix](#installing-nix)), then:
+
+```bash
+nix profile add github:phoggy/wardn
+```
+
+On macOS, Nix can't build the Bitwarden CLI (`bw`), so install it separately, e.g. with `brew install bitwarden-cli`:
+wardn uses the one on your PATH. On Linux, Nix includes it.
+
+To install a specific version:
+
+```bash
+nix profile add github:phoggy/wardn/v0.2.0
+```
+
+To upgrade to the latest version:
+
+```bash
+nix profile upgrade wardn
+```
+
+To run without installing:
+
+```bash
+nix run github:phoggy/wardn
+```
+
+All dependencies are declared in the `flake.nix` file in the `runtimeDeps` list. New dependencies must be added there.
+
+### Installing Nix
+
+**Mac with Apple silicon:** Download and run the [Determinate Nix installer](https://dtr.mn/determinate-nix).
+
+**Mac x86:**
+
+```bash
+curl -L https://nixos.org/nix/install | sh
+```
+
+**Linux:**
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+```
+
+**Windows:** Nix runs in Windows' own Linux environment, WSL. In PowerShell as administrator, run `wsl --install`,
+restart, open Ubuntu from the Start menu, and follow the Linux step above inside it (see
+[Install WSL](https://learn.microsoft.com/windows/wsl/install)). Windows files are under `/mnt/c` there.
+
+All installers create a `/nix` volume and take a few minutes to complete. Answer yes to any prompts and allow any
+system dialogs that pop up. Once complete, open a new terminal before continuing.
+
+If you used the Mac x86 installer, enable flakes:
+
+```bash
+mkdir -p ~/.config/nix
+echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+```
+
+To remove Nix later: after the Determinate installer, run `/nix/nix-installer uninstall`; after the Mac x86 one, see
+[Uninstalling Nix](https://nix.dev/manual/nix/latest/installation/uninstall).
+
+## Optional: RAM-backed Temp Storage
+
+wardn keeps the unencrypted vault data, while it works, only in RAM-backed temporary storage, so that nothing it
+deletes can be recovered from the disk:
+
+- **Linux:** `/dev/shm` is used automatically: nothing to configure.
+- **macOS 10.15+:** a RAM disk is created each time one is needed, which takes a second or two. To skip that, set up a
+  tmpfs mount once, with `rayvn-tmp` (installed with wardn):
+
+```bash
+rayvn-tmp status     # show current strategy and instructions
+rayvn-tmp install    # install a LaunchDaemon to mount it at boot (requires sudo)
+rayvn-tmp uninstall  # remove the LaunchDaemon (requires sudo)
+```
+
+If none is available, wardn asks before using the disk instead.

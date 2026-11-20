@@ -51,7 +51,7 @@ usage() {
     echo "                                 backup, as well as those in WARDN_INCLUDE_PATH. May be repeated."
     echo "    --no-include                 Ignore WARDN_INCLUDE_PATH for this backup."
     echo "    -l, --login                  Force full login even if API key environment variables are set."
-    showCommonOptions 33 true true envVars
+    showCommonOptions --column 33 --env-vars envVars
     bye "${@}"
 }
 
