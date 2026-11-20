@@ -9,12 +9,25 @@ nav_order: 1
 Encrypted [Bitwarden](https://bitwarden.com/) vault backup and restore. Built on [rayvn](/rayvn) and [valt](/valt).
 
 wardn exports your Bitwarden vault, attachments included, with the Bitwarden CLI, and saves it as a [valt](/valt)
-[*secure archive*](/valt/api/valt-archive#secure-archives): encrypted with age and signed with your valt key, so that
-tampering is detected on restore. Restoring verifies and decrypts a backup, then imports it into a vault, attachments
-and all.
+[*secure archive*](/valt/api/valt-archive#secure-archives): encrypted with [age](https://age-encryption.org/) and
+signed with [minisign](https://jedisct1.github.io/minisign/), using your valt key. Restoring verifies and decrypts a
+backup, then imports it into a vault, attachments and all.
 
-Your credentials are never stored: logging in and unlocking always ask for them. The unencrypted vault data is kept only
-in memory-backed storage while wardn works, never on disk, unless none is available and you agree to use the disk.
+- **Post-quantum encryption.** valt keys are always post-quantum: age's hybrid of ML-KEM-768 and X25519, so a backup
+  made today stays protected against future quantum computers, even if it is copied now and attacked later (see the
+  [design notes](/valt/api/valt-keys#design-notes)).
+- **Tampering is detected.** A secure archive is signed both outside and inside its encryption, so a backup that was
+  changed, or replaced by one made with another key, is refused before anything is restored.
+- **Others can recover it.** Your valt [paper key](/valt/assets/sample-paper-key.pdf) explains to your successors how
+  to use your key. A backup can be restored with only Nix installed (see
+  [Restore Without Installing](#restore-without-installing)), and `valt decrypt BACKUP` recognizes a wardn backup and
+  offers to restore it.
+- **Everything in one place.** A backup can include other encrypted files, such as your authenticator app's 2FA tokens
+  (see [Including other files](https://github.com/phoggy/wardn#including-other-files)), so that it is a complete
+  recovery set.
+- **Your secrets stay off disk.** Your credentials are never stored: logging in and unlocking always ask for them. The
+  unencrypted vault data is kept only in memory-backed storage while wardn works, never on disk, unless none is
+  available and you agree to use the disk.
 
 ## First Look
 
